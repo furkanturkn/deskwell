@@ -14,5 +14,6 @@ public static class HueProtocol
     public const byte MaximumBrightness = 254;
     public const ushort MinimumTemperatureMirek = 153;
     public const ushort MaximumTemperatureMirek = 500;
+    public const ushort DefaultTemperatureMirek = 366;
     public const byte InsufficientEncryptionProtocolError = 15;
 }

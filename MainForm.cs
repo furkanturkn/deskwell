@@ -8,7 +8,7 @@ public sealed class MainForm : Form
     private const int DwmRoundCorner = 2;
     private const int ContentWidth = 380;
     private const int InitialHeight = 520;
-    private const int HeaderHeight = 322;
+    private const int HeaderHeight = 362;
     private const int SideMargin = 16;
     private const int InnerWidth = ContentWidth - 2 * SideMargin;
     private const int ScreenEdgeGap = 12;
@@ -36,6 +36,12 @@ public sealed class MainForm : Form
     private const int SyncRowTop = 270;
     private const int SyncSubtitleTop = 298;
     private const int SyncSubtitleHeight = 18;
+    private const int SmoothnessRowTop = 326;
+    private const int SmoothnessChipWidth = 56;
+    private const int SmoothnessChipHeight = 26;
+    private const int SmoothnessChipGap = 8;
+    private const int SmoothnessSliderTopOffset = -2;
+    private const int SmoothnessSaveDelayMilliseconds = 500;
     private const int EggRowTop = 226;
     private const int EggChipWidth = 72;
     private const int EggChipHeight = 30;
@@ -56,6 +62,10 @@ public sealed class MainForm : Form
     private readonly EggTimer eggTimer = new();
     private readonly ScreenSync screenSync;
     private readonly ToggleSwitch syncToggle = new();
+    private readonly AppSettings settings = AppSettings.Load();
+    private readonly ModernSlider smoothnessSlider = new() { Minimum = 0, Maximum = ScreenSync.MaximumSmoothness };
+    private readonly Label smoothnessValue = new() { AutoSize = false, TextAlign = ContentAlignment.MiddleRight, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
+    private readonly System.Windows.Forms.Timer smoothnessSaveTimer = new() { Interval = SmoothnessSaveDelayMilliseconds };
     private readonly List<Chip> eggPresetChips = [];
     private readonly Label eggCountdownLabel = new() { AutoSize = true, Font = Theme.HeadingFont, ForeColor = Theme.Accent, BackColor = Color.Transparent, Visible = false };
     private readonly Chip eggCancelChip = new() { Text = "Cancel", Visible = false };
@@ -85,8 +95,8 @@ public sealed class MainForm : Form
     public MainForm(LightRegistry registry)
     {
         this.registry = registry;
-        screenSync = new ScreenSync(() => ConnectedLights);
-        sceneScheduler = new SceneScheduler(AppSettings.Load(), () => ConnectedLights, () => screenSync.IsEnabled);
+        screenSync = new ScreenSync(() => ConnectedLights) { Smoothness = settings.ScreenSyncSmoothness };
+        sceneScheduler = new SceneScheduler(settings, () => ConnectedLights, () => screenSync.IsEnabled);
         sceneScheduler.Ticked += RefreshAutoSubtitle;
 
         Text = "Hue Desk";
@@ -100,6 +110,7 @@ public sealed class MainForm : Form
 
         panelHost.Padding = new Padding(SideMargin, HostTopPadding, SideMargin, HostBottomPadding);
         headerMenu.Items.Add("Add light...", null, (_, _) => ShowAddLightDialog());
+        headerMenu.Items.Add("Reset all lights", null, (_, _) => ResetAllLights());
         menuChip.Click += (_, _) => headerMenu.Show(menuChip, new Point(0, menuChip.Height));
         BuildHeader();
         Controls.Add(panelHost);
@@ -167,6 +178,7 @@ public sealed class MainForm : Form
 
         activeLights.Clear();
         sceneScheduler.Dispose();
+        smoothnessSaveTimer.Dispose();
         screenSync.Stop();
         screenSync.Dispose();
         eggTimer.Dispose();
@@ -309,6 +321,54 @@ public sealed class MainForm : Form
             screenSync.Stop();
         };
         header.Controls.AddRange([title, subtitle, syncToggle]);
+        BuildSmoothnessRow();
+    }
+
+    private void BuildSmoothnessRow()
+    {
+        var caption = new Label { Text = "Smoothness", AutoSize = false, Size = new Size(CaptionWidth, CaptionHeight), TextAlign = ContentAlignment.MiddleLeft, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, SmoothnessRowTop) };
+        var resetChip = new Chip { Text = "Reset", Size = new Size(SmoothnessChipWidth, SmoothnessChipHeight), Location = new Point(ContentWidth - SideMargin - SmoothnessChipWidth, SmoothnessRowTop) };
+        var valueLeft = resetChip.Left - SmoothnessChipGap - ValueWidth;
+        var sliderLeft = SideMargin + CaptionWidth;
+        smoothnessSlider.Location = new Point(sliderLeft, SmoothnessRowTop + SmoothnessSliderTopOffset);
+        smoothnessSlider.Size = new Size(valueLeft - SliderRightGap - sliderLeft, SliderHeight);
+        smoothnessValue.Size = new Size(ValueWidth, ValueHeight);
+        smoothnessValue.Location = new Point(valueLeft, SmoothnessRowTop);
+
+        smoothnessSlider.ValueChanged += (_, _) => smoothnessValue.Text = $"{smoothnessSlider.Value}%";
+        smoothnessSlider.UserChanged += (_, _) =>
+        {
+            screenSync.Smoothness = smoothnessSlider.Value;
+            smoothnessSaveTimer.Stop();
+            smoothnessSaveTimer.Start();
+        };
+        smoothnessSaveTimer.Tick += (_, _) =>
+        {
+            smoothnessSaveTimer.Stop();
+            settings.ScreenSyncSmoothness = screenSync.Smoothness;
+            settings.Save();
+        };
+        resetChip.Click += (_, _) => ResetSmoothness();
+        smoothnessSlider.SetValueSilently(settings.ScreenSyncSmoothness);
+        smoothnessValue.Text = $"{smoothnessSlider.Value}%";
+        header.Controls.AddRange([caption, smoothnessSlider, smoothnessValue, resetChip]);
+    }
+
+    private void ResetSmoothness()
+    {
+        smoothnessSlider.SetValueSilently(ScreenSync.DefaultSmoothness);
+        smoothnessValue.Text = $"{ScreenSync.DefaultSmoothness}%";
+        screenSync.Smoothness = ScreenSync.DefaultSmoothness;
+        settings.ScreenSyncSmoothness = ScreenSync.DefaultSmoothness;
+        settings.Save();
+    }
+
+    private void ResetAllLights()
+    {
+        foreach (var light in ConnectedLights)
+        {
+            _ = LightCommands.RunSafely(light, light.ResetToDefault);
+        }
     }
 
     private void StartEggTimer(EggPreset preset)

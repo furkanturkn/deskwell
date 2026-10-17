@@ -82,6 +82,7 @@ public sealed class LightPanel : Panel
         statusLabel.Size = new Size(StatusWidth, StatusHeight);
         powerToggle.Location = new Point(CardWidth - CardPadding - powerToggle.Width, ToggleTop);
         menuChip.Location = new Point(powerToggle.Left - MenuGap - menuChip.Width, MenuTop);
+        menu.Items.Add("Reset light", null, (_, _) => _ = LightCommands.RunSafely(light, light.ResetToDefault));
         menu.Items.Add("Remove light", null, (_, _) => onRemoveRequested(light.SavedLight));
         menuChip.Click += (_, _) => menu.Show(menuChip, new Point(0, menuChip.Height));
 

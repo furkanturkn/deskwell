@@ -6,7 +6,10 @@ namespace HueDesk;
 public sealed class ScreenSync : IDisposable
 {
     private const int SampleIntervalMilliseconds = 60;
-    private const double SmoothingFactorPerReference = 0.65;
+    private const double SnappiestFactorPerReference = 0.95;
+    private const double FactorRangePerSmoothnessPoint = 0.0075;
+    public const int DefaultSmoothness = 40;
+    public const int MaximumSmoothness = 100;
     private const double SmoothingReferenceMilliseconds = 120;
     private const double MaximumElapsedMilliseconds = 500;
     private const double SaturationBoost = 1.35;
@@ -36,6 +39,8 @@ public sealed class ScreenSync : IDisposable
     public bool IsEnabled { get; private set; }
 
     public bool IsSuspended { get; set; }
+
+    public int Smoothness { get; set; } = DefaultSmoothness;
 
     public void Start()
     {
@@ -148,7 +153,8 @@ public sealed class ScreenSync : IDisposable
         var now = Stopwatch.GetTimestamp();
         var elapsedMilliseconds = Math.Min(Stopwatch.GetElapsedTime(lastSampleTimestamp, now).TotalMilliseconds, MaximumElapsedMilliseconds);
         lastSampleTimestamp = now;
-        return 1 - Math.Pow(1 - SmoothingFactorPerReference, elapsedMilliseconds / SmoothingReferenceMilliseconds);
+        var factorPerReference = SnappiestFactorPerReference - Math.Clamp(Smoothness, 0, MaximumSmoothness) * FactorRangePerSmoothnessPoint;
+        return 1 - Math.Pow(1 - factorPerReference, elapsedMilliseconds / SmoothingReferenceMilliseconds);
     }
 
     private static LightOutput ToOutput(ScreenColor color)

@@ -122,6 +122,13 @@ public sealed class HueLight : IDisposable
         await SetPower(snapshot.State.IsOn);
     }
 
+    public async Task ResetToDefault()
+    {
+        await SetPower(true);
+        await SetBrightness(HueProtocol.MaximumBrightness);
+        await SetTemperature(HueProtocol.DefaultTemperatureMirek);
+    }
+
     public async Task ApplyScene(Scene scene)
     {
         await SetPower(true);
