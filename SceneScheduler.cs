@@ -62,6 +62,7 @@ public sealed class SceneScheduler : IDisposable
             return;
         }
 
+        ActivityLog.Write($"Scene \"{scene.Name}\" applied to {lightsToUpdate.Count} light(s)");
         foreach (var light in lightsToUpdate)
         {
             _ = LightCommands.RunSafely(light, () => light.ApplyScene(scene));

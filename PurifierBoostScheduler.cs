@@ -88,6 +88,7 @@ public sealed class PurifierBoostScheduler : IDisposable
         }
 
         await purifier.SetMode(PurifierMode.Auto);
+        ActivityLog.Write("Purifier boost finished, back to Auto");
         settings.PurifierBoostEndsAt = null;
         settings.Save();
         Changed?.Invoke();
@@ -104,6 +105,7 @@ public sealed class PurifierBoostScheduler : IDisposable
 
         await purifier.SetPower(true);
         await purifier.SetMode(PurifierMode.Manual);
+        ActivityLog.Write($"Purifier boost started, Manual for {BoostDuration.TotalMinutes:0} min");
         settings.PurifierBoostStartedAt = latestStart;
         settings.PurifierBoostEndsAt = latestStart + BoostDuration;
         settings.Save();

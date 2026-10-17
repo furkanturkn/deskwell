@@ -54,6 +54,7 @@ public sealed class BreakReminder : IDisposable
         nextReminderAt = now + ReminderInterval;
         var lights = connectedLights().Where(light => light.LastState is { IsOn: true }).ToList();
         isBlinking = true;
+        ActivityLog.Write($"Break reminder: blinking {lights.Count} light(s)");
         try
         {
             await Task.WhenAll(lights.Select(light => LightCommands.RunSafely(light, () => Blink(light))));
