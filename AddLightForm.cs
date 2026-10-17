@@ -9,16 +9,17 @@ public sealed class AddLightForm : Form
     private static readonly TimeSpan ScanDuration = TimeSpan.FromSeconds(10);
 
     private readonly ListBox foundLightsListBox = new() { Dock = DockStyle.Fill, DisplayMember = nameof(FoundLight.Display) };
-    private readonly Label statusLabel = new() { Dock = DockStyle.Bottom, Height = 44, ForeColor = Color.Gainsboro, Padding = new Padding(8, 4, 8, 4) };
-    private readonly Button scanButton = new() { Text = "Scan", Dock = DockStyle.Bottom, Height = 32 };
-    private readonly Button addButton = new() { Text = "Pair and add selected light", Dock = DockStyle.Bottom, Height = 32 };
+    private readonly Label statusLabel = new() { Dock = DockStyle.Bottom, Height = Theme.Scale(44), ForeColor = Color.Gainsboro, Padding = new Padding(Theme.Scale(8), Theme.Scale(4), Theme.Scale(8), Theme.Scale(4)) };
+    private readonly Button scanButton = new() { Text = "Scan", Dock = DockStyle.Bottom, Height = Theme.Scale(32) };
+    private readonly Button addButton = new() { Text = "Pair and add selected light", Dock = DockStyle.Bottom, Height = Theme.Scale(32) };
     private readonly HashSet<ulong> knownAddresses;
 
     public AddLightForm(IEnumerable<ulong> alreadySavedAddresses)
     {
         knownAddresses = alreadySavedAddresses.ToHashSet();
         Text = "Add a light";
-        Size = new Size(380, 380);
+        Size = new Size(Theme.Scale(380), Theme.Scale(380));
+        Font = new Font("Segoe UI", 9f * Theme.UiScale);
         StartPosition = FormStartPosition.CenterParent;
         BackColor = Color.FromArgb(32, 32, 36);
         ForeColor = Color.White;

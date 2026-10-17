@@ -9,7 +9,7 @@ public sealed class ToggleSwitch : Control
     public ToggleSwitch()
     {
         DoubleBuffered = true;
-        Size = new Size(46, 26);
+        Size = new Size(Theme.Scale(46), Theme.Scale(26));
         Cursor = Cursors.Hand;
     }
 
@@ -70,17 +70,18 @@ public sealed class ToggleSwitch : Control
         using var trackBrush = new SolidBrush(trackColor);
         graphics.FillPath(trackBrush, trackPath);
 
-        var knobDiameter = Height - 8;
-        var knobLeft = isChecked ? Width - knobDiameter - 4 : 4;
+        var knobInset = Theme.Scale(4);
+        var knobDiameter = Height - 2 * knobInset;
+        var knobLeft = isChecked ? Width - knobDiameter - knobInset : knobInset;
         using var knobBrush = new SolidBrush(knobColor);
-        graphics.FillEllipse(knobBrush, knobLeft, 4, knobDiameter - 1, knobDiameter - 1);
+        graphics.FillEllipse(knobBrush, knobLeft, knobInset, knobDiameter - 1, knobDiameter - 1);
     }
 }
 
 public sealed class ModernSlider : Control
 {
-    private const int ThumbDiameter = 18;
-    private const int TrackHeight = 8;
+    private static readonly int ThumbDiameter = Theme.Scale(18);
+    private static readonly int TrackHeight = Theme.Scale(8);
 
     private int minimum;
     private int maximum = 100;
@@ -91,7 +92,7 @@ public sealed class ModernSlider : Control
     public ModernSlider()
     {
         DoubleBuffered = true;
-        Height = 26;
+        Height = Theme.Scale(26);
         Cursor = Cursors.Hand;
         SetStyle(ControlStyles.Selectable, true);
         TabStop = true;
@@ -289,7 +290,7 @@ public sealed class SegmentedControl : Control
     {
         this.items = items;
         DoubleBuffered = true;
-        Height = 30;
+        Height = Theme.Scale(30);
         Cursor = Cursors.Hand;
     }
 
@@ -330,7 +331,7 @@ public sealed class SegmentedControl : Control
             var isSelected = index == selectedIndex;
             if (isSelected)
             {
-                var pill = RectangleF.Inflate(segment, -3, -3);
+                var pill = RectangleF.Inflate(segment, -Theme.Scale(3), -Theme.Scale(3));
                 using var pillPath = Theme.RoundedRectangle(pill, pill.Height / 2f);
                 using var pillBrush = new SolidBrush(Theme.Accent);
                 graphics.FillPath(pillBrush, pillPath);
@@ -350,7 +351,7 @@ public sealed class SwatchRow : Control
     {
         this.colors = colors;
         DoubleBuffered = true;
-        Height = 26;
+        Height = Theme.Scale(26);
         Cursor = Cursors.Hand;
     }
 
@@ -399,7 +400,7 @@ public sealed class Chip : Control
     public Chip()
     {
         DoubleBuffered = true;
-        Height = 30;
+        Height = Theme.Scale(30);
         Font = Theme.ChipFont;
         Cursor = Cursors.Hand;
     }
@@ -450,14 +451,14 @@ public enum PowerIcon
 public sealed class PowerButton : Control
 {
     private const float IconSizeFraction = 0.46f;
-    private const float IconPenWidth = 1.8f;
+    private const float IconPenWidth = 1.8f * Theme.UiScale;
 
     private bool isChecked;
 
     public PowerButton()
     {
         DoubleBuffered = true;
-        Size = new Size(30, 30);
+        Size = new Size(Theme.Scale(30), Theme.Scale(30));
         Cursor = Cursors.Hand;
     }
 

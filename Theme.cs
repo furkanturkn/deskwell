@@ -4,6 +4,8 @@ namespace HueDesk;
 
 public static class Theme
 {
+    public const float UiScale = 1.3f;
+
     public static readonly Color Background = Color.FromArgb(24, 24, 29);
     public static readonly Color Card = Color.FromArgb(35, 35, 42);
     public static readonly Color CardBorder = Color.FromArgb(52, 52, 62);
@@ -18,11 +20,16 @@ public static class Theme
     public static readonly Color Warning = Color.FromArgb(255, 170, 60);
     public static readonly Color Danger = Color.FromArgb(240, 100, 100);
 
-    public static readonly Font TitleFont = new("Segoe UI Semibold", 15f);
-    public static readonly Font HeadingFont = new("Segoe UI Semibold", 11.5f);
-    public static readonly Font BodyFont = new("Segoe UI", 9.5f);
-    public static readonly Font SmallFont = new("Segoe UI", 8.5f);
-    public static readonly Font ChipFont = new("Segoe UI Semibold", 9f);
+    public static readonly Font TitleFont = new("Segoe UI Semibold", 15f * UiScale);
+    public static readonly Font HeadingFont = new("Segoe UI Semibold", 11.5f * UiScale);
+    public static readonly Font BodyFont = new("Segoe UI", 9.5f * UiScale);
+    public static readonly Font SmallFont = new("Segoe UI", 8.5f * UiScale);
+    public static readonly Font ChipFont = new("Segoe UI Semibold", 9f * UiScale);
+
+    public static int Scale(int pixels)
+    {
+        return (int)Math.Round(pixels * UiScale);
+    }
 
     public static GraphicsPath RoundedRectangle(RectangleF bounds, float radius)
     {

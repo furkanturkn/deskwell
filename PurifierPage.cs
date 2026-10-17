@@ -2,25 +2,25 @@ namespace HueDesk;
 
 public sealed class PurifierPage : Panel
 {
-    public const int PageHeight = 192;
+    public static readonly int PageHeight = Theme.Scale(192);
 
-    private const int SideMargin = 16;
-    private const int ContentWidth = 380;
-    private const int InnerWidth = ContentWidth - 2 * SideMargin;
-    private const int TitleTop = 12;
-    private const int StatusTop = 40;
-    private const int StatusHeight = 36;
-    private const int ModeRowTop = 90;
-    private const int ModeChipWidth = 84;
-    private const int ModeChipHeight = 30;
-    private const int ModeChipGap = 6;
+    private static readonly int SideMargin = Theme.Scale(16);
+    private static readonly int ContentWidth = Theme.Scale(380);
+    private static readonly int InnerWidth = ContentWidth - 2 * SideMargin;
+    private static readonly int TitleTop = Theme.Scale(12);
+    private static readonly int StatusTop = Theme.Scale(40);
+    private static readonly int StatusHeight = Theme.Scale(36);
+    private static readonly int ModeRowTop = Theme.Scale(90);
+    private static readonly int ModeChipWidth = Theme.Scale(84);
+    private static readonly int ModeChipHeight = Theme.Scale(30);
+    private static readonly int ModeChipGap = Theme.Scale(6);
     private const int RefreshIntervalMilliseconds = 5000;
-    private const int SpeedRowTop = 138;
-    private const int CaptionWidth = 76;
-    private const int ValueWidth = 44;
-    private const int ValueHeight = 20;
-    private const int SliderHeight = 26;
-    private const int SliderRightGap = 4;
+    private static readonly int SpeedRowTop = Theme.Scale(138);
+    private static readonly int CaptionWidth = Theme.Scale(76);
+    private static readonly int ValueWidth = Theme.Scale(44);
+    private static readonly int ValueHeight = Theme.Scale(20);
+    private static readonly int SliderHeight = Theme.Scale(26);
+    private static readonly int SliderRightGap = Theme.Scale(4);
     private const int SpeedSendDelayMilliseconds = 250;
 
     private readonly AirPurifier? purifier;
