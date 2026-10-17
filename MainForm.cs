@@ -66,6 +66,7 @@ public sealed class MainForm : Form
     private readonly LightRegistry registry;
     private readonly List<HueLight> activeLights = [];
     private readonly SceneScheduler sceneScheduler;
+    private readonly BreakReminder breakReminder;
     private readonly GlobalHotkey toggleHotkey;
     private readonly EggTimer eggTimer = new();
     private readonly ScreenSync screenSync;
@@ -112,6 +113,7 @@ public sealed class MainForm : Form
         screenSync = new ScreenSync(() => ConnectedLights) { Smoothness = settings.ScreenSyncSmoothness };
         sceneScheduler = new SceneScheduler(settings, () => ConnectedLights, () => screenSync.IsEnabled);
         sceneScheduler.Ticked += RefreshAutoSubtitle;
+        breakReminder = new BreakReminder(() => ConnectedLights, () => screenSync.IsEnabled);
 
         Text = "Hue Desk";
         FormBorderStyle = FormBorderStyle.None;
@@ -199,6 +201,7 @@ public sealed class MainForm : Form
 
         activeLights.Clear();
         sceneScheduler.Dispose();
+        breakReminder.Dispose();
         smoothnessSaveTimer.Dispose();
         screenSync.Stop();
         screenSync.Dispose();
