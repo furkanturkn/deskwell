@@ -16,6 +16,7 @@ public sealed class MainForm : Form
     private const int LightsTabIndex = 0;
     private const int ScenesTabIndex = 1;
     private const int ToolsTabIndex = 2;
+    private const int AirTabIndex = 3;
     private const int SideMargin = 16;
     private const int InnerWidth = ContentWidth - 2 * SideMargin;
     private const int ScreenEdgeGap = 12;
@@ -85,9 +86,10 @@ public sealed class MainForm : Form
         BackColor = Theme.Background,
     };
 
-    private readonly SegmentedControl tabSwitch = new("Lights", "Scenes", "Tools");
+    private readonly SegmentedControl tabSwitch = new("Lights", "Scenes", "Tools", "Air");
     private readonly Panel scenesPage = new() { Dock = DockStyle.Fill, BackColor = Theme.Background, Visible = false };
     private readonly Panel toolsPage = new() { Dock = DockStyle.Fill, BackColor = Theme.Background, Visible = false };
+    private readonly PurifierPage purifierPage = new(PurifierConfig.Load());
     private readonly Panel header = new() { Dock = DockStyle.Top, Height = HeaderHeight, BackColor = Theme.Background };
     private readonly Label subtitleLabel = new() { AutoSize = true, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
     private readonly PowerButton masterToggle = new() { Icon = PowerIcon.Power };
@@ -131,6 +133,7 @@ public sealed class MainForm : Form
         Controls.Add(panelHost);
         Controls.Add(scenesPage);
         Controls.Add(toolsPage);
+        Controls.Add(purifierPage);
         Controls.Add(header);
 
         masterBrightnessTimer.Tick += (_, _) => SendMasterBrightness();
@@ -199,6 +202,7 @@ public sealed class MainForm : Form
         screenSync.Stop();
         screenSync.Dispose();
         eggTimer.Dispose();
+        purifierPage.Dispose();
         headerMenu.Dispose();
         toggleHotkey.Dispose();
     }
@@ -527,6 +531,8 @@ public sealed class MainForm : Form
         panelHost.Visible = tabIndex == LightsTabIndex;
         scenesPage.Visible = tabIndex == ScenesTabIndex;
         toolsPage.Visible = tabIndex == ToolsTabIndex;
+        purifierPage.Visible = tabIndex == AirTabIndex;
+        purifierPage.SetActive(tabIndex == AirTabIndex);
         FitToContent();
     }
 
@@ -540,6 +546,11 @@ public sealed class MainForm : Form
         if (tabSwitch.SelectedIndex == ToolsTabIndex)
         {
             return ToolsPageHeight;
+        }
+
+        if (tabSwitch.SelectedIndex == AirTabIndex)
+        {
+            return PurifierPage.PageHeight;
         }
 
         var lightsHeight = panelHost.Padding.Vertical;
