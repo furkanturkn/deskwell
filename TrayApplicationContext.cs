@@ -6,6 +6,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 {
     private const string StartupRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string StartupValueName = "HueDesk";
+    private const string StartupMarkerFileName = "startup-configured";
 
     private readonly NotifyIcon notifyIcon;
     private readonly MainForm mainForm;
@@ -23,9 +24,10 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(startWithWindowsItem);
         menu.Items.Add("Exit", null, (_, _) => ExitApplication());
 
+        var trayIcon = CreateTrayIcon();
         notifyIcon = new NotifyIcon
         {
-            Icon = CreateTrayIcon(),
+            Icon = trayIcon,
             Text = "Hue Desk",
             ContextMenuStrip = menu,
             Visible = true,
@@ -61,7 +63,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private static void ApplyStartWithWindowsDefault()
     {
-        var markerPath = Path.Combine(AppPaths.DataDirectory, "startup-configured");
+        var markerPath = Path.Combine(AppPaths.DataDirectory, StartupMarkerFileName);
         if (!File.Exists(markerPath))
         {
             SetStartWithWindows(true);

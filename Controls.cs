@@ -223,11 +223,9 @@ public sealed class ModernSlider : Control
         if (gradient is { Length: > 1 })
         {
             using var gradientBrush = new LinearGradientBrush(track, gradient[0], gradient[^1], LinearGradientMode.Horizontal);
-            var blend = new ColorBlend(gradient.Length)
-            {
-                Colors = gradient.Select(color => Color.FromArgb(opacity, color)).ToArray(),
-                Positions = Enumerable.Range(0, gradient.Length).Select(index => index / (float)(gradient.Length - 1)).ToArray(),
-            };
+            var fadedColors = gradient.Select(color => Color.FromArgb(opacity, color)).ToArray();
+            var positions = Enumerable.Range(0, gradient.Length).Select(index => index / (float)(gradient.Length - 1)).ToArray();
+            var blend = new ColorBlend(gradient.Length) { Colors = fadedColors, Positions = positions };
             gradientBrush.InterpolationColors = blend;
             graphics.FillPath(gradientBrush, trackPath);
         }
@@ -257,10 +255,10 @@ public sealed class ModernSlider : Control
 
     private RectangleF TrackBounds => new(ThumbDiameter / 2f, (Height - TrackHeight) / 2f, Width - ThumbDiameter, TrackHeight);
 
-    private int ValueFromX(int x)
+    private int ValueFromX(int pointerX)
     {
         var track = TrackBounds;
-        var fraction = Math.Clamp((x - track.Left) / track.Width, 0f, 1f);
+        var fraction = Math.Clamp((pointerX - track.Left) / track.Width, 0f, 1f);
         return minimum + (int)Math.Round(fraction * (maximum - minimum));
     }
 
@@ -325,7 +323,7 @@ public sealed class SegmentedControl : Control
         graphics.FillPath(backgroundBrush, backgroundPath);
 
         var segmentWidth = (Width - 1) / (float)items.Length;
-        var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         for (var index = 0; index < items.Length; index++)
         {
             var segment = new RectangleF(index * segmentWidth, 0, segmentWidth, Height - 1);
@@ -437,7 +435,7 @@ public sealed class Chip : Control
         using var brush = new SolidBrush(isHovered && Enabled ? Theme.ChipHover : Theme.Chip);
         graphics.FillPath(brush, path);
 
-        var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         using var textBrush = new SolidBrush(Enabled ? Theme.TextPrimary : Theme.TextSecondary);
         graphics.DrawString(Text, Font, textBrush, new RectangleF(0, 0, Width, Height - 1), format);
     }

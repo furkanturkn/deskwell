@@ -27,14 +27,14 @@ public sealed class AddLightForm : Form
         Controls.Add(statusLabel);
         Controls.Add(addButton);
         Controls.Add(scanButton);
-        scanButton.Click += async (_, _) => await ScanAsync();
-        addButton.Click += async (_, _) => await PairSelectedAsync();
-        Shown += async (_, _) => await ScanAsync();
+        scanButton.Click += async (_, _) => await Scan();
+        addButton.Click += async (_, _) => await PairSelected();
+        Shown += async (_, _) => await Scan();
     }
 
     public SavedLight? AddedLight { get; private set; }
 
-    private async Task ScanAsync()
+    private async Task Scan()
     {
         scanButton.Enabled = false;
         addButton.Enabled = false;
@@ -73,7 +73,7 @@ public sealed class AddLightForm : Form
         addButton.Enabled = true;
     }
 
-    private async Task PairSelectedAsync()
+    private async Task PairSelected()
     {
         if (foundLightsListBox.SelectedItem is not FoundLight selected)
         {

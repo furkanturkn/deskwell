@@ -6,7 +6,9 @@ public sealed record SavedLight(string Name, ulong BluetoothAddress);
 
 public sealed class LightRegistry
 {
-    private static readonly string RegistryFilePath = Path.Combine(AppPaths.DataDirectory, "lights.json");
+    private const string RegistryFileName = "lights.json";
+
+    private static readonly string RegistryFilePath = Path.Combine(AppPaths.DataDirectory, RegistryFileName);
     private readonly List<SavedLight> lights;
 
     private LightRegistry(List<SavedLight> lights)

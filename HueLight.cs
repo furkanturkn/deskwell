@@ -37,55 +37,57 @@ public sealed class HueLight : IDisposable
 
     public ConnectionState Connection { get; private set; } = ConnectionState.Disconnected;
 
+    public bool IsConnected => Connection == ConnectionState.Connected;
+
     public string? LastError { get; private set; }
 
     public LightState? LastState { get; private set; }
 
     public void StartKeepingConnected()
     {
-        _ = Task.Run(() => KeepConnectedAsync(lifetime.Token));
+        _ = Task.Run(() => KeepConnected(lifetime.Token));
     }
 
-    public async Task SetPowerAsync(bool isOn)
+    public async Task SetPower(bool isOn)
     {
-        await WriteAsync(powerCharacteristic, [isOn ? (byte)1 : (byte)0]);
+        await Write(powerCharacteristic, [isOn ? (byte)1 : (byte)0]);
         UpdateState(state => state with { IsOn = isOn });
     }
 
-    public async Task SetBrightnessAsync(byte brightness)
+    public async Task SetBrightness(byte brightness)
     {
         var clampedBrightness = Math.Clamp(brightness, HueProtocol.MinimumBrightness, HueProtocol.MaximumBrightness);
-        await WriteAsync(brightnessCharacteristic, [clampedBrightness]);
+        await Write(brightnessCharacteristic, [clampedBrightness]);
         UpdateState(state => state with { Brightness = clampedBrightness });
     }
 
-    public async Task SetTemperatureAsync(ushort temperatureMirek)
+    public async Task SetTemperature(ushort temperatureMirek)
     {
         var clampedTemperature = Math.Clamp(temperatureMirek, HueProtocol.MinimumTemperatureMirek, HueProtocol.MaximumTemperatureMirek);
-        await WriteAsync(temperatureCharacteristic, BitConverter.GetBytes(clampedTemperature));
+        await Write(temperatureCharacteristic, BitConverter.GetBytes(clampedTemperature));
         UpdateState(state => state with { TemperatureMirek = clampedTemperature });
     }
 
-    public Task SetColorAsync(double hue, double saturation)
+    public Task SetColor(double hue, double saturation)
     {
         var (chromaticityX, chromaticityY) = HueColor.ToChromaticity(hue, saturation);
         var value = new byte[4];
         BitConverter.TryWriteBytes(value.AsSpan(0, 2), (ushort)Math.Round(chromaticityX * ushort.MaxValue));
         BitConverter.TryWriteBytes(value.AsSpan(2, 2), (ushort)Math.Round(chromaticityY * ushort.MaxValue));
-        return WriteAsync(colorCharacteristic, value);
+        return Write(colorCharacteristic, value);
     }
 
-    public async Task ApplySceneAsync(Scene scene)
+    public async Task ApplyScene(Scene scene)
     {
-        await SetPowerAsync(true);
-        await SetBrightnessAsync(scene.Brightness);
+        await SetPower(true);
+        await SetBrightness(scene.Brightness);
         if (scene.TemperatureMirek is { } temperatureMirek)
         {
-            await SetTemperatureAsync(temperatureMirek);
+            await SetTemperature(temperatureMirek);
         }
         else if (scene.Hue is { } hue && scene.Saturation is { } saturation)
         {
-            await SetColorAsync(hue, saturation);
+            await SetColor(hue, saturation);
         }
     }
 
@@ -95,14 +97,14 @@ public sealed class HueLight : IDisposable
         lifetime.Dispose();
     }
 
-    private async Task KeepConnectedAsync(CancellationToken cancellationToken)
+    private async Task KeepConnected(CancellationToken cancellationToken)
     {
         var retryDelay = MinimumRetryDelay;
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                await ConnectAndWaitForDisconnectAsync(cancellationToken);
+                await ConnectAndWaitForDisconnect(cancellationToken);
                 retryDelay = MinimumRetryDelay;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -122,7 +124,7 @@ public sealed class HueLight : IDisposable
         }
     }
 
-    private async Task ConnectAndWaitForDisconnectAsync(CancellationToken cancellationToken)
+    private async Task ConnectAndWaitForDisconnect(CancellationToken cancellationToken)
     {
         SetConnection(ConnectionState.Connecting);
 
@@ -149,7 +151,7 @@ public sealed class HueLight : IDisposable
         temperatureCharacteristic = FindCharacteristic(characteristicsResult, HueProtocol.TemperatureCharacteristicUuid);
         colorCharacteristic = characteristicsResult.Characteristics.FirstOrDefault(characteristic => characteristic.Uuid == HueProtocol.ColorCharacteristicUuid);
 
-        var initialState = await ReadStateAsync();
+        var initialState = await ReadState();
         LastError = null;
         LastState = initialState;
         SetConnection(ConnectionState.Connected);
@@ -175,11 +177,11 @@ public sealed class HueLight : IDisposable
         }
     }
 
-    private async Task<LightState> ReadStateAsync()
+    private async Task<LightState> ReadState()
     {
-        var powerBytes = await ReadAsync(powerCharacteristic);
-        var brightnessBytes = await ReadAsync(brightnessCharacteristic);
-        var temperatureBytes = await ReadAsync(temperatureCharacteristic);
+        var powerBytes = await Read(powerCharacteristic);
+        var brightnessBytes = await Read(brightnessCharacteristic);
+        var temperatureBytes = await Read(temperatureCharacteristic);
         return new LightState(powerBytes[0] != 0, brightnessBytes[0], BitConverter.ToUInt16(temperatureBytes, 0));
     }
 
@@ -189,7 +191,7 @@ public sealed class HueLight : IDisposable
             ?? throw new InvalidOperationException($"Characteristic {uuid} not found.");
     }
 
-    private static async Task<byte[]> ReadAsync(GattCharacteristic? characteristic)
+    private static async Task<byte[]> Read(GattCharacteristic? characteristic)
     {
         var target = characteristic ?? throw new InvalidOperationException("Light is not connected.");
         var result = await target.ReadValueAsync(BluetoothCacheMode.Uncached);
@@ -201,7 +203,7 @@ public sealed class HueLight : IDisposable
         throw new InvalidOperationException(DescribeFailure("Read", result.Status, result.ProtocolError));
     }
 
-    private static async Task WriteAsync(GattCharacteristic? characteristic, byte[] value)
+    private static async Task Write(GattCharacteristic? characteristic, byte[] value)
     {
         var target = characteristic ?? throw new InvalidOperationException("Light is not connected.");
         var result = await target.WriteValueWithResultAsync(value.AsBuffer(), GattWriteOption.WriteWithResponse);

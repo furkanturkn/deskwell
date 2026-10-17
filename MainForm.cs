@@ -1,36 +1,52 @@
-using System.Runtime.InteropServices;
-
 namespace HueDesk;
 
 public sealed class MainForm : Form
 {
-    private const int HotkeyMessage = 0x0312;
-    private const int ToggleHotkeyId = 1;
-    private const uint ModifierAlt = 0x0001;
-    private const uint ModifierControl = 0x0002;
     private const int DropShadowClassStyle = 0x20000;
     private const int DwmDarkModeAttribute = 20;
     private const int DwmCornerPreferenceAttribute = 33;
     private const int DwmRoundCorner = 2;
     private const int ContentWidth = 380;
+    private const int InitialHeight = 520;
     private const int HeaderHeight = 214;
     private const int SideMargin = 16;
+    private const int InnerWidth = ContentWidth - 2 * SideMargin;
     private const int ScreenEdgeGap = 12;
+    private const int HostTopPadding = 4;
+    private const int HostBottomPadding = 8;
+    private const int TitleTop = 12;
+    private const int SubtitleTop = 42;
+    private const int SubtitleLeftOffset = 2;
+    private const int MasterToggleTop = 18;
+    private const int MasterSliderTop = 74;
+    private const int MasterRowTop = 76;
+    private const int CaptionWidth = 76;
+    private const int ValueWidth = 44;
+    private const int ValueHeight = 20;
+    private const int CaptionHeight = 22;
+    private const int SliderHeight = 26;
+    private const int SliderRightGap = 4;
+    private const int ScenesTop = 116;
+    private const int SceneChipWidth = 64;
+    private const int SceneChipHeight = 30;
+    private const int SceneChipGap = 7;
+    private const int AutoRowTop = 162;
+    private const int AutoSubtitleTop = 190;
+    private const int AutoSubtitleHeight = 18;
+    private const int AddLightChipHeight = 38;
     private const int BrightnessSendDelayMilliseconds = 60;
-    private const int ScheduleCheckSeconds = 30;
     private const int TrayClickGuardMilliseconds = 300;
 
     private readonly LightRegistry registry;
-    private readonly AppSettings settings;
     private readonly List<HueLight> activeLights = [];
-    private readonly Dictionary<HueLight, string> appliedSceneNames = [];
+    private readonly SceneScheduler sceneScheduler;
+    private readonly GlobalHotkey toggleHotkey;
     private readonly FlowLayoutPanel panelHost = new()
     {
         Dock = DockStyle.Fill,
         FlowDirection = FlowDirection.TopDown,
         WrapContents = false,
         AutoScroll = true,
-        Padding = new Padding(SideMargin, 4, SideMargin, 8),
         BackColor = Theme.Background,
     };
 
@@ -38,19 +54,19 @@ public sealed class MainForm : Form
     private readonly Label subtitleLabel = new() { AutoSize = true, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
     private readonly ToggleSwitch masterToggle = new();
     private readonly ModernSlider masterBrightness = new() { Minimum = HueProtocol.MinimumBrightness, Maximum = HueProtocol.MaximumBrightness };
-    private readonly Label masterBrightnessValue = new() { AutoSize = false, Size = new Size(44, 20), TextAlign = ContentAlignment.MiddleRight, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
+    private readonly Label masterBrightnessValue = new() { AutoSize = false, TextAlign = ContentAlignment.MiddleRight, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
     private readonly ToggleSwitch autoToggle = new();
-    private readonly Label autoSubtitleLabel = new() { AutoSize = false, Size = new Size(ContentWidth - 2 * SideMargin, 18), Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
-    private readonly Chip addLightChip = new() { Text = "+  Add light", Size = new Size(ContentWidth - 2 * SideMargin, 38), Margin = new Padding(0) };
+    private readonly Label autoSubtitleLabel = new() { AutoSize = false, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
+    private readonly Chip addLightChip = new() { Text = "+  Add light", Margin = new Padding(0) };
     private readonly System.Windows.Forms.Timer masterBrightnessTimer = new() { Interval = BrightnessSendDelayMilliseconds };
-    private readonly System.Windows.Forms.Timer scheduleTimer = new() { Interval = ScheduleCheckSeconds * 1000 };
     private bool isAutoHideSuppressed;
     private DateTime lastAutoHideTime = DateTime.MinValue;
 
     public MainForm(LightRegistry registry)
     {
         this.registry = registry;
-        settings = AppSettings.Load();
+        sceneScheduler = new SceneScheduler(AppSettings.Load(), () => ConnectedLights);
+        sceneScheduler.Ticked += RefreshAutoSubtitle;
 
         Text = "Hue Desk";
         FormBorderStyle = FormBorderStyle.None;
@@ -59,17 +75,20 @@ public sealed class MainForm : Form
         KeyPreview = true;
         StartPosition = FormStartPosition.Manual;
         BackColor = Theme.Background;
-        ClientSize = new Size(ContentWidth, 520);
+        ClientSize = new Size(ContentWidth, InitialHeight);
 
-        BuildHeader();
+        panelHost.Padding = new Padding(SideMargin, HostTopPadding, SideMargin, HostBottomPadding);
+        addLightChip.Size = new Size(InnerWidth, AddLightChipHeight);
         addLightChip.Click += (_, _) => ShowAddLightDialog();
         panelHost.Controls.Add(addLightChip);
+        BuildHeader();
         Controls.Add(panelHost);
         Controls.Add(header);
 
         masterBrightnessTimer.Tick += (_, _) => SendMasterBrightness();
-        scheduleTimer.Tick += (_, _) => ApplyScheduledScene();
-        scheduleTimer.Start();
+
+        toggleHotkey = new GlobalHotkey(HotkeyModifiers.Control | HotkeyModifiers.Alt, Keys.L);
+        toggleHotkey.Pressed += ToggleNearTray;
 
         _ = Handle;
 
@@ -123,6 +142,8 @@ public sealed class MainForm : Form
         }
 
         activeLights.Clear();
+        sceneScheduler.Dispose();
+        toggleHotkey.Dispose();
     }
 
     protected override void OnHandleCreated(EventArgs eventArgs)
@@ -130,19 +151,8 @@ public sealed class MainForm : Form
         base.OnHandleCreated(eventArgs);
         var darkMode = 1;
         var cornerPreference = DwmRoundCorner;
-        DwmSetWindowAttribute(Handle, DwmDarkModeAttribute, ref darkMode, sizeof(int));
-        DwmSetWindowAttribute(Handle, DwmCornerPreferenceAttribute, ref cornerPreference, sizeof(int));
-
-        if (!RegisterHotKey(Handle, ToggleHotkeyId, ModifierControl | ModifierAlt, (uint)Keys.L))
-        {
-            Logger.Write("Global hotkey Ctrl+Alt+L is already taken by another application.", null);
-        }
-    }
-
-    protected override void OnHandleDestroyed(EventArgs eventArgs)
-    {
-        UnregisterHotKey(Handle, ToggleHotkeyId);
-        base.OnHandleDestroyed(eventArgs);
+        DwmWindow.SetAttribute(Handle, DwmDarkModeAttribute, ref darkMode);
+        DwmWindow.SetAttribute(Handle, DwmCornerPreferenceAttribute, ref cornerPreference);
     }
 
     protected override void OnDeactivate(EventArgs eventArgs)
@@ -173,17 +183,6 @@ public sealed class MainForm : Form
         return base.ProcessCmdKey(ref message, keyData);
     }
 
-    protected override void WndProc(ref Message message)
-    {
-        if (message.Msg == HotkeyMessage && message.WParam == ToggleHotkeyId)
-        {
-            ToggleNearTray();
-            return;
-        }
-
-        base.WndProc(ref message);
-    }
-
     protected override void OnFormClosing(FormClosingEventArgs eventArgs)
     {
         if (eventArgs.CloseReason == CloseReason.UserClosing)
@@ -196,49 +195,46 @@ public sealed class MainForm : Form
         base.OnFormClosing(eventArgs);
     }
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool RegisterHotKey(IntPtr windowHandle, int hotkeyId, uint modifiers, uint virtualKey);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool UnregisterHotKey(IntPtr windowHandle, int hotkeyId);
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr windowHandle, int attribute, ref int value, int size);
+    private IEnumerable<HueLight> ConnectedLights => activeLights.Where(light => light.IsConnected);
 
     private void BuildHeader()
     {
-        var titleLabel = new Label { Text = "Hue Desk", AutoSize = true, Font = Theme.TitleFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, 12) };
-        subtitleLabel.Location = new Point(SideMargin + 2, 42);
-        masterToggle.Location = new Point(ContentWidth - SideMargin - masterToggle.Width, 18);
+        var titleLabel = new Label { Text = "Hue Desk", AutoSize = true, Font = Theme.TitleFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, TitleTop) };
+        subtitleLabel.Location = new Point(SideMargin + SubtitleLeftOffset, SubtitleTop);
+        masterToggle.Location = new Point(ContentWidth - SideMargin - masterToggle.Width, MasterToggleTop);
 
-        var brightnessCaption = new Label { Text = "All lights", AutoSize = false, Size = new Size(76, 22), TextAlign = ContentAlignment.MiddleLeft, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, 76) };
-        var sliderLeft = SideMargin + 76;
-        masterBrightness.Location = new Point(sliderLeft, 74);
-        masterBrightness.Size = new Size(ContentWidth - SideMargin - 44 - sliderLeft - 4, 26);
-        masterBrightnessValue.Location = new Point(ContentWidth - SideMargin - 44, 76);
+        var brightnessCaption = new Label { Text = "All lights", AutoSize = false, Size = new Size(CaptionWidth, CaptionHeight), TextAlign = ContentAlignment.MiddleLeft, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, MasterRowTop) };
+        var sliderLeft = SideMargin + CaptionWidth;
+        masterBrightness.Location = new Point(sliderLeft, MasterSliderTop);
+        masterBrightness.Size = new Size(ContentWidth - SideMargin - ValueWidth - sliderLeft - SliderRightGap, SliderHeight);
+        masterBrightnessValue.Size = new Size(ValueWidth, ValueHeight);
+        masterBrightnessValue.Location = new Point(ContentWidth - SideMargin - ValueWidth, MasterRowTop);
 
         header.Controls.AddRange([titleLabel, subtitleLabel, masterToggle, brightnessCaption, masterBrightness, masterBrightnessValue]);
 
-        const int chipWidth = 64;
-        const int chipGap = 7;
         for (var index = 0; index < Scenes.All.Count; index++)
         {
             var scene = Scenes.All[index];
-            var chip = new Chip { Text = scene.Name, Size = new Size(chipWidth, 30), Location = new Point(SideMargin + index * (chipWidth + chipGap), 116) };
+            var chip = new Chip { Text = scene.Name, Size = new Size(SceneChipWidth, SceneChipHeight), Location = new Point(SideMargin + index * (SceneChipWidth + SceneChipGap), ScenesTop) };
             chip.Click += (_, _) => ApplySceneToAll(scene);
             header.Controls.Add(chip);
         }
 
-        var autoTitle = new Label { Text = "Auto by time of day", AutoSize = true, Font = Theme.BodyFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, 162) };
-        autoSubtitleLabel.Location = new Point(SideMargin, 190);
-        autoToggle.Location = new Point(ContentWidth - SideMargin - autoToggle.Width, 162);
-        autoToggle.SetCheckedSilently(settings.AutoScenesEnabled);
+        var autoTitle = new Label { Text = "Auto by time of day", AutoSize = true, Font = Theme.BodyFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, AutoRowTop) };
+        autoSubtitleLabel.Size = new Size(InnerWidth, AutoSubtitleHeight);
+        autoSubtitleLabel.Location = new Point(SideMargin, AutoSubtitleTop);
+        autoToggle.Location = new Point(ContentWidth - SideMargin - autoToggle.Width, AutoRowTop);
+        autoToggle.SetCheckedSilently(sceneScheduler.IsEnabled);
         header.Controls.AddRange([autoTitle, autoSubtitleLabel, autoToggle]);
 
         masterToggle.CheckedChanged += (_, _) => SetPowerOfAll(masterToggle.Checked);
         masterBrightness.ValueChanged += (_, _) => masterBrightnessValue.Text = $"{(int)Math.Round(masterBrightness.Value * 100.0 / HueProtocol.MaximumBrightness)}%";
         masterBrightness.UserChanged += (_, _) => masterBrightnessTimer.Start();
-        autoToggle.CheckedChanged += (_, _) => OnAutoToggled();
+        autoToggle.CheckedChanged += (_, _) =>
+        {
+            sceneScheduler.IsEnabled = autoToggle.Checked;
+            RefreshAutoSubtitle();
+        };
         masterBrightness.SetValueSilently(HueProtocol.MaximumBrightness);
         RefreshAutoSubtitle();
     }
@@ -257,7 +253,8 @@ public sealed class MainForm : Form
         light.ConnectionChanged += () => BeginInvokeIfCreated(() =>
         {
             RefreshMaster();
-            ApplyScheduledScene();
+            sceneScheduler.ApplyDue();
+            RefreshAutoSubtitle();
         });
 
         light.StartKeepingConnected();
@@ -267,14 +264,14 @@ public sealed class MainForm : Form
     private void RemoveLight(SavedLight savedLight)
     {
         var light = activeLights.FirstOrDefault(active => active.SavedLight == savedLight);
-        if (light is null)
+        if (light is null || !ConfirmRemoval(savedLight))
         {
             return;
         }
 
         light.Dispose();
         activeLights.Remove(light);
-        appliedSceneNames.Remove(light);
+        sceneScheduler.Forget(light);
         registry.Remove(savedLight.BluetoothAddress);
 
         var panel = panelHost.Controls.OfType<LightPanel>().FirstOrDefault(candidate => candidate.SavedLight == savedLight);
@@ -286,6 +283,25 @@ public sealed class MainForm : Form
 
         RefreshMaster();
         FitToContent();
+    }
+
+    private bool ConfirmRemoval(SavedLight savedLight)
+    {
+        isAutoHideSuppressed = true;
+        try
+        {
+            var answer = MessageBox.Show(
+                this,
+                $"Remove \"{savedLight.Name}\" from Hue Desk?\n\nTo add it again later, factory reset the light first.",
+                Text,
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            return answer == DialogResult.Yes;
+        }
+        finally
+        {
+            isAutoHideSuppressed = false;
+        }
     }
 
     private void ShowAddLightDialog()
@@ -317,7 +333,7 @@ public sealed class MainForm : Form
             contentHeight += child.Height + child.Margin.Vertical;
         }
 
-        var workingArea = Screen.PrimaryScreen!.WorkingArea;
+        var workingArea = Screen.FromControl(this).WorkingArea;
         var maximumHeight = workingArea.Height - 2 * ScreenEdgeGap;
         var totalHeight = Math.Min(HeaderHeight + contentHeight, maximumHeight);
         ClientSize = new Size(ContentWidth, totalHeight);
@@ -331,8 +347,6 @@ public sealed class MainForm : Form
             BeginInvoke(action);
         }
     }
-
-    private IEnumerable<HueLight> ConnectedLights => activeLights.Where(light => light.Connection == ConnectionState.Connected);
 
     private void RefreshMaster()
     {
@@ -355,7 +369,7 @@ public sealed class MainForm : Form
     {
         foreach (var light in ConnectedLights)
         {
-            _ = RunSafelyAsync(light, () => light.SetPowerAsync(isOn));
+            _ = LightCommands.RunSafely(light, () => light.SetPower(isOn));
         }
     }
 
@@ -365,69 +379,25 @@ public sealed class MainForm : Form
         var brightness = (byte)masterBrightness.Value;
         foreach (var light in ConnectedLights)
         {
-            _ = RunSafelyAsync(light, () => light.SetBrightnessAsync(brightness));
+            _ = LightCommands.RunSafely(light, () => light.SetBrightness(brightness));
         }
     }
 
     private void ApplySceneToAll(Scene scene)
     {
-        var scheduledName = Scenes.ScheduledAt(TimeOnly.FromDateTime(DateTime.Now)).Name;
-        foreach (var light in ConnectedLights)
+        var lights = ConnectedLights.ToList();
+        sceneScheduler.MarkCurrentSceneApplied(lights);
+        foreach (var light in lights)
         {
-            appliedSceneNames[light] = scheduledName;
-            _ = RunSafelyAsync(light, () => light.ApplySceneAsync(scene));
-        }
-    }
-
-    private void OnAutoToggled()
-    {
-        settings.AutoScenesEnabled = autoToggle.Checked;
-        settings.Save();
-        RefreshAutoSubtitle();
-        if (settings.AutoScenesEnabled)
-        {
-            appliedSceneNames.Clear();
-            ApplyScheduledScene();
-        }
-    }
-
-    private void ApplyScheduledScene()
-    {
-        RefreshAutoSubtitle();
-        if (!settings.AutoScenesEnabled)
-        {
-            return;
-        }
-
-        var scene = Scenes.ScheduledAt(TimeOnly.FromDateTime(DateTime.Now));
-        foreach (var light in ConnectedLights)
-        {
-            if (appliedSceneNames.GetValueOrDefault(light) == scene.Name)
-            {
-                continue;
-            }
-
-            appliedSceneNames[light] = scene.Name;
-            _ = RunSafelyAsync(light, () => light.ApplySceneAsync(scene));
+            _ = LightCommands.RunSafely(light, () => light.ApplyScene(scene));
         }
     }
 
     private void RefreshAutoSubtitle()
     {
-        var current = Scenes.ScheduledAt(TimeOnly.FromDateTime(DateTime.Now));
         var schedule = string.Join(" · ", Scenes.All.Where(scene => scene.AutoStart is not null).OrderBy(scene => scene.AutoStart).Select(scene => $"{scene.Name} {scene.AutoStart:HH}"));
-        autoSubtitleLabel.Text = settings.AutoScenesEnabled ? $"Now: {current.Name}  ·  {schedule}" : "Off: lights stay as you leave them";
-    }
-
-    private static async Task RunSafelyAsync(HueLight light, Func<Task> command)
-    {
-        try
-        {
-            await command();
-        }
-        catch (Exception exception)
-        {
-            Logger.Write($"{light.SavedLight.Name}: command failed", exception);
-        }
+        autoSubtitleLabel.Text = sceneScheduler.IsEnabled
+            ? $"Now: {sceneScheduler.CurrentScene.Name}  ·  {schedule}"
+            : "Off: lights stay as you leave them";
     }
 }

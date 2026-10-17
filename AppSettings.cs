@@ -4,9 +4,13 @@ namespace HueDesk;
 
 public sealed class AppSettings
 {
-    private static readonly string SettingsFilePath = Path.Combine(AppPaths.DataDirectory, "settings.json");
+    private const string SettingsFileName = "settings.json";
+
+    private static readonly string SettingsFilePath = Path.Combine(AppPaths.DataDirectory, SettingsFileName);
 
     public bool AutoScenesEnabled { get; set; } = true;
+
+    public string? LastAppliedSceneName { get; set; }
 
     public static AppSettings Load()
     {

@@ -15,6 +15,25 @@ public sealed class LightPanel : Panel
     private const int PageTop = 144;
     private const int WhiteModeHeight = 196;
     private const int ColorModeHeight = 262;
+    private const int CardCornerRadius = 16;
+    private const int CardBottomMargin = 12;
+    private const int NameTop = 12;
+    private const int StatusTop = 36;
+    private const int StatusWidth = 210;
+    private const int StatusHeight = 18;
+    private const int ToggleTop = 16;
+    private const int MenuTop = 14;
+    private const int MenuGap = 12;
+    private const int MenuChipWidth = 30;
+    private const int MenuChipHeight = 28;
+    private const int ModeSwitchHeight = 30;
+    private const int SwatchTopOffset = 2;
+    private const int SwatchHeight = 26;
+    private const int CaptionHeight = 22;
+    private const int SliderHeight = 26;
+    private const int SliderTopOffset = 2;
+    private const int SliderRightGap = 4;
+    private const int ValueHeight = 20;
 
     private static readonly Color[] RainbowStops =
         [Color.Red, Color.Yellow, Color.Lime, Color.Cyan, Color.Blue, Color.Magenta, Color.Red];
@@ -28,7 +47,8 @@ public sealed class LightPanel : Panel
     private readonly Label nameLabel = CreateLabel(Theme.HeadingFont, Theme.TextPrimary);
     private readonly Label statusLabel = CreateLabel(Theme.SmallFont, Theme.TextSecondary);
     private readonly ToggleSwitch powerToggle = new();
-    private readonly Chip menuChip = new() { Text = "...", Size = new Size(30, 28) };
+    private readonly Chip menuChip = new() { Text = "...", Size = new Size(MenuChipWidth, MenuChipHeight) };
+    private readonly ContextMenuStrip menu = new();
     private readonly ModernSlider brightnessSlider = new() { Minimum = HueProtocol.MinimumBrightness, Maximum = HueProtocol.MaximumBrightness };
     private readonly ModernSlider warmthSlider = new() { Minimum = HueProtocol.MinimumTemperatureMirek, Maximum = HueProtocol.MaximumTemperatureMirek, Gradient = WarmthStops };
     private readonly ModernSlider hueSlider = new() { Minimum = 0, Maximum = 360, Gradient = RainbowStops };
@@ -54,25 +74,26 @@ public sealed class LightPanel : Panel
         BackColor = Theme.Card;
         Width = CardWidth;
         Height = WhiteModeHeight;
-        Margin = new Padding(0, 0, 0, 12);
+        Margin = new Padding(0, 0, 0, CardBottomMargin);
 
         nameLabel.Text = light.SavedLight.Name;
-        nameLabel.Location = new Point(CardPadding, 12);
-        statusLabel.Location = new Point(CardPadding, 36);
-        statusLabel.Size = new Size(210, 18);
-        powerToggle.Location = new Point(CardWidth - CardPadding - powerToggle.Width, 16);
-        menuChip.Location = new Point(powerToggle.Left - 12 - menuChip.Width, 14);
-        menuChip.Click += (_, _) => ShowMenu(onRemoveRequested);
+        nameLabel.Location = new Point(CardPadding, NameTop);
+        statusLabel.Location = new Point(CardPadding, StatusTop);
+        statusLabel.Size = new Size(StatusWidth, StatusHeight);
+        powerToggle.Location = new Point(CardWidth - CardPadding - powerToggle.Width, ToggleTop);
+        menuChip.Location = new Point(powerToggle.Left - MenuGap - menuChip.Width, MenuTop);
+        menu.Items.Add("Remove light", null, (_, _) => onRemoveRequested(light.SavedLight));
+        menuChip.Click += (_, _) => menu.Show(menuChip, new Point(0, menuChip.Height));
 
         AddSliderRow("Brightness", brightnessSlider, brightnessValue, FirstRowTop, whiteControls: null);
         modeSwitch.Location = new Point(CardPadding, ModeSwitchTop);
-        modeSwitch.Size = new Size(CardWidth - 2 * CardPadding, 30);
+        modeSwitch.Size = new Size(CardWidth - 2 * CardPadding, ModeSwitchHeight);
 
         AddSliderRow("Warmth", warmthSlider, warmthValue, PageTop, whiteControls);
         AddSliderRow("Hue", hueSlider, hueValue, PageTop, colorControls);
         AddSliderRow("Saturation", saturationSlider, saturationValue, PageTop + RowPitch, colorControls);
-        swatchRow.Location = new Point(CardPadding, PageTop + 2 * RowPitch + 2);
-        swatchRow.Size = new Size(CardWidth - 2 * CardPadding, 26);
+        swatchRow.Location = new Point(CardPadding, PageTop + 2 * RowPitch + SwatchTopOffset);
+        swatchRow.Size = new Size(CardWidth - 2 * CardPadding, SwatchHeight);
         colorControls.Add(swatchRow);
 
         Controls.AddRange([nameLabel, statusLabel, menuChip, powerToggle, modeSwitch, swatchRow]);
@@ -81,7 +102,7 @@ public sealed class LightPanel : Panel
         UpdateSaturationGradient();
         ShowMode(0);
 
-        powerToggle.CheckedChanged += async (_, _) => await RunCommandAsync(() => light.SetPowerAsync(powerToggle.Checked));
+        powerToggle.CheckedChanged += async (_, _) => await RunCommand(() => light.SetPower(powerToggle.Checked));
         modeSwitch.SelectedChanged += (_, _) => ShowMode(modeSwitch.SelectedIndex);
         brightnessSlider.UserChanged += (_, _) => QueueSend(brightness: true);
         warmthSlider.UserChanged += (_, _) => QueueSend(warmth: true);
@@ -89,7 +110,7 @@ public sealed class LightPanel : Panel
         saturationSlider.UserChanged += (_, _) => QueueSend(color: true);
         hueSlider.ValueChanged += (_, _) => UpdateSaturationGradient();
         swatchRow.SwatchClicked += OnSwatchClicked;
-        sendTimer.Tick += async (_, _) => await SendPendingAsync();
+        sendTimer.Tick += async (_, _) => await SendPending();
 
         brightnessSlider.ValueChanged += (_, _) => brightnessValue.Text = $"{(int)Math.Round(brightnessSlider.Value * 100.0 / HueProtocol.MaximumBrightness)}%";
         warmthSlider.ValueChanged += (_, _) => warmthValue.Text = $"{1_000_000 / Math.Max(1, warmthSlider.Value) / 100 * 100}K";
@@ -121,7 +142,7 @@ public sealed class LightPanel : Panel
         graphics.Clear(Parent?.BackColor ?? Theme.Background);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-        using var path = Theme.RoundedRectangle(new RectangleF(0.5f, 0.5f, Width - 2, Height - 2), 16);
+        using var path = Theme.RoundedRectangle(new RectangleF(0.5f, 0.5f, Width - 2, Height - 2), CardCornerRadius);
         using var fillBrush = new SolidBrush(Theme.Card);
         using var borderPen = new Pen(Theme.CardBorder);
         graphics.FillPath(fillBrush, path);
@@ -133,6 +154,7 @@ public sealed class LightPanel : Panel
         if (disposing)
         {
             sendTimer.Dispose();
+            menu.Dispose();
         }
 
         base.Dispose(disposing);
@@ -148,7 +170,7 @@ public sealed class LightPanel : Panel
         return new Label
         {
             AutoSize = false,
-            Size = new Size(ValueWidth, 20),
+            Size = new Size(ValueWidth, ValueHeight),
             TextAlign = ContentAlignment.MiddleRight,
             Font = Theme.SmallFont,
             ForeColor = Theme.TextSecondary,
@@ -161,13 +183,13 @@ public sealed class LightPanel : Panel
         var captionLabel = CreateLabel(Theme.BodyFont, Theme.TextSecondary);
         captionLabel.Text = caption;
         captionLabel.AutoSize = false;
-        captionLabel.Size = new Size(CaptionWidth, 22);
+        captionLabel.Size = new Size(CaptionWidth, CaptionHeight);
         captionLabel.TextAlign = ContentAlignment.MiddleLeft;
         captionLabel.Location = new Point(CardPadding, top);
 
         var sliderLeft = CardPadding + CaptionWidth;
-        slider.Location = new Point(sliderLeft, top - 2);
-        slider.Size = new Size(CardWidth - CardPadding - ValueWidth - sliderLeft - 4, 26);
+        slider.Location = new Point(sliderLeft, top - SliderTopOffset);
+        slider.Size = new Size(CardWidth - CardPadding - ValueWidth - sliderLeft - SliderRightGap, SliderHeight);
         valueLabel.Location = new Point(CardWidth - CardPadding - ValueWidth, top);
 
         Controls.AddRange([captionLabel, slider, valueLabel]);
@@ -195,24 +217,6 @@ public sealed class LightPanel : Panel
         }
     }
 
-    private void ShowMenu(Action<SavedLight> onRemoveRequested)
-    {
-        var menu = new ContextMenuStrip();
-        menu.Items.Add("Remove light", null, (_, _) =>
-        {
-            var answer = MessageBox.Show(
-                $"Remove \"{light.SavedLight.Name}\" from Hue Desk?\n\nTo add it again later, factory reset the light first.",
-                "Hue Desk",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-            if (answer == DialogResult.Yes)
-            {
-                onRemoveRequested(light.SavedLight);
-            }
-        });
-        menu.Show(menuChip, new Point(0, menuChip.Height));
-    }
-
     private void BeginInvokeIfCreated(Action action)
     {
         if (IsHandleCreated && !IsDisposed)
@@ -223,7 +227,7 @@ public sealed class LightPanel : Panel
 
     private void RefreshStatus()
     {
-        var isConnected = light.Connection == ConnectionState.Connected;
+        var isConnected = light.IsConnected;
         statusLabel.Text = light.Connection switch
         {
             ConnectionState.Connected => "● Connected",
@@ -267,7 +271,7 @@ public sealed class LightPanel : Panel
         sendTimer.Start();
     }
 
-    private async Task SendPendingAsync()
+    private async Task SendPending()
     {
         sendTimer.Stop();
         if (isSending)
@@ -290,17 +294,17 @@ public sealed class LightPanel : Panel
 
                 if (shouldSendBrightness)
                 {
-                    await RunCommandAsync(() => light.SetBrightnessAsync((byte)brightnessSlider.Value));
+                    await RunCommand(() => light.SetBrightness((byte)brightnessSlider.Value));
                 }
 
                 if (shouldSendWarmth)
                 {
-                    await RunCommandAsync(() => light.SetTemperatureAsync((ushort)warmthSlider.Value));
+                    await RunCommand(() => light.SetTemperature((ushort)warmthSlider.Value));
                 }
 
                 if (shouldSendColor)
                 {
-                    await RunCommandAsync(() => light.SetColorAsync(hueSlider.Value, saturationSlider.Value / 100.0));
+                    await RunCommand(() => light.SetColor(hueSlider.Value, saturationSlider.Value / 100.0));
                 }
             }
         }
@@ -310,7 +314,7 @@ public sealed class LightPanel : Panel
         }
     }
 
-    private async Task RunCommandAsync(Func<Task> command)
+    private async Task RunCommand(Func<Task> command)
     {
         try
         {
