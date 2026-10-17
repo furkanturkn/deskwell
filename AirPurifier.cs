@@ -31,10 +31,13 @@ public enum PurifierMode
     Manual = 2,
 }
 
-public sealed record PurifierState(bool IsOn, PurifierMode? Mode, int? ParticleDensity, int? FilterLifePercent);
+public sealed record PurifierState(bool IsOn, PurifierMode? Mode, int? ParticleDensity, int? FilterLifePercent, int? FanLevel);
 
 public sealed class AirPurifier : IDisposable
 {
+    public const int MinimumFanLevel = 1;
+    public const int MaximumFanLevel = 14;
+
     private const int StatusCodeSuccess = 0;
     private const int ProbeMaximumService = 12;
     private const int ProbeMaximumProperty = 16;
@@ -43,6 +46,7 @@ public sealed class AirPurifier : IDisposable
     private static readonly PropertyAddress Mode = new(2, 4);
     private static readonly PropertyAddress ParticleDensity = new(3, 4);
     private static readonly PropertyAddress FilterLife = new(4, 1);
+    private static readonly PropertyAddress FanLevel = new(9, 11);
 
     private readonly MiioClient client;
 
@@ -53,14 +57,15 @@ public sealed class AirPurifier : IDisposable
 
     public async Task<PurifierState> ReadState()
     {
-        var values = await ReadProperties([Power, Mode, ParticleDensity, FilterLife]);
+        var values = await ReadProperties([Power, Mode, ParticleDensity, FilterLife, FanLevel]);
         var isOn = values[0]?.GetValue<bool>() ?? throw new InvalidDataException("The purifier did not report its power state.");
         var modeValue = values[1]?.GetValue<int>();
         return new PurifierState(
             isOn,
             modeValue is { } mode && Enum.IsDefined(typeof(PurifierMode), mode) ? (PurifierMode)mode : null,
             values[2]?.GetValue<int>(),
-            values[3]?.GetValue<int>());
+            values[3]?.GetValue<int>(),
+            values[4]?.GetValue<int>());
     }
 
     public Task SetPower(bool isOn)
@@ -71,6 +76,11 @@ public sealed class AirPurifier : IDisposable
     public Task SetMode(PurifierMode mode)
     {
         return WriteProperty(Mode, JsonValue.Create((int)mode));
+    }
+
+    public Task SetFanLevel(int level)
+    {
+        return WriteProperty(FanLevel, JsonValue.Create(Math.Clamp(level, MinimumFanLevel, MaximumFanLevel)));
     }
 
     public async Task ProbeAllProperties()
