@@ -5,7 +5,7 @@ namespace HueDesk;
 
 public sealed class ScreenSync : IDisposable
 {
-    private const int SampleIntervalMilliseconds = 300;
+    private const int SampleIntervalMilliseconds = 120;
     private const int GridColumns = 32;
     private const int GridRows = 18;
     private const int BytesPerPixel = 4;
@@ -140,7 +140,7 @@ public sealed class ScreenSync : IDisposable
         return new LightOutput(hue, boostedSaturation, brightness);
     }
 
-    private static bool IsNoticeableChange(LightOutput? previous, LightOutput next)
+    private static bool IsColorChange(LightOutput? previous, LightOutput next)
     {
         if (previous is null)
         {
@@ -150,8 +150,25 @@ public sealed class ScreenSync : IDisposable
         var hueDistance = Math.Abs(previous.Hue - next.Hue);
         var circularHueDistance = Math.Min(hueDistance, 360 - hueDistance);
         return circularHueDistance > HueChangeThresholdDegrees
-            || Math.Abs(previous.Saturation - next.Saturation) > SaturationChangeThreshold
-            || Math.Abs(previous.Brightness - next.Brightness) > BrightnessChangeThreshold;
+            || Math.Abs(previous.Saturation - next.Saturation) > SaturationChangeThreshold;
+    }
+
+    private static bool IsBrightnessChange(LightOutput? previous, LightOutput next)
+    {
+        return previous is null || Math.Abs(previous.Brightness - next.Brightness) > BrightnessChangeThreshold;
+    }
+
+    private static LightOutput MergeSent(LightOutput? previous, LightOutput next, bool wasColorSent, bool wasBrightnessSent)
+    {
+        if (previous is null)
+        {
+            return next;
+        }
+
+        return new LightOutput(
+            wasColorSent ? next.Hue : previous.Hue,
+            wasColorSent ? next.Saturation : previous.Saturation,
+            wasBrightnessSent ? next.Brightness : previous.Brightness);
     }
 
     private async Task Sample()
@@ -164,7 +181,9 @@ public sealed class ScreenSync : IDisposable
         var captured = CaptureScreenColor();
         smoothedColor = smoothedColor is null ? captured : smoothedColor.Blend(captured, SmoothingFactor);
         var output = ToOutput(smoothedColor);
-        if (!IsNoticeableChange(lastOutput, output))
+        var shouldSendColor = IsColorChange(lastOutput, output);
+        var shouldSendBrightness = IsBrightnessChange(lastOutput, output);
+        if (!shouldSendColor && !shouldSendBrightness)
         {
             return;
         }
@@ -172,8 +191,8 @@ public sealed class ScreenSync : IDisposable
         isSending = true;
         try
         {
-            lastOutput = output;
-            await Task.WhenAll(connectedLights().Select(light => LightCommands.RunSafely(light, () => Send(light, output))));
+            lastOutput = MergeSent(lastOutput, output, shouldSendColor, shouldSendBrightness);
+            await Task.WhenAll(connectedLights().Select(light => LightCommands.RunSafely(light, () => Send(light, output, shouldSendColor, shouldSendBrightness))));
         }
         finally
         {
@@ -181,10 +200,17 @@ public sealed class ScreenSync : IDisposable
         }
     }
 
-    private static async Task Send(HueLight light, LightOutput output)
+    private static async Task Send(HueLight light, LightOutput output, bool shouldSendColor, bool shouldSendBrightness)
     {
-        await light.SetColor(output.Hue, output.Saturation);
-        await light.SetBrightness(output.Brightness);
+        if (shouldSendColor)
+        {
+            await light.SetColor(output.Hue, output.Saturation, LightWriteMode.Fast);
+        }
+
+        if (shouldSendBrightness)
+        {
+            await light.SetBrightness(output.Brightness, LightWriteMode.Fast);
+        }
     }
 
     private sealed record ScreenColor(double Red, double Green, double Blue, double Luminance)

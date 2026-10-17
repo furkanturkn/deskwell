@@ -12,6 +12,12 @@ public enum ConnectionState
     Connected,
 }
 
+public enum LightWriteMode
+{
+    Confirmed,
+    Fast,
+}
+
 public enum LightMode
 {
     White,
@@ -69,10 +75,10 @@ public sealed class HueLight : IDisposable
         UpdateState(state => state with { IsOn = isOn });
     }
 
-    public async Task SetBrightness(byte brightness)
+    public async Task SetBrightness(byte brightness, LightWriteMode writeMode = LightWriteMode.Confirmed)
     {
         var clampedBrightness = Math.Clamp(brightness, HueProtocol.MinimumBrightness, HueProtocol.MaximumBrightness);
-        await Write(brightnessCharacteristic, [clampedBrightness]);
+        await Write(brightnessCharacteristic, [clampedBrightness], writeMode);
         UpdateState(state => state with { Brightness = clampedBrightness });
     }
 
@@ -84,13 +90,13 @@ public sealed class HueLight : IDisposable
         UpdateState(state => state with { TemperatureMirek = clampedTemperature });
     }
 
-    public async Task SetColor(double hue, double saturation)
+    public async Task SetColor(double hue, double saturation, LightWriteMode writeMode = LightWriteMode.Confirmed)
     {
         var (chromaticityX, chromaticityY) = HueColor.ToChromaticity(hue, saturation);
         var value = new byte[4];
         BitConverter.TryWriteBytes(value.AsSpan(0, 2), (ushort)Math.Round(chromaticityX * ushort.MaxValue));
         BitConverter.TryWriteBytes(value.AsSpan(2, 2), (ushort)Math.Round(chromaticityY * ushort.MaxValue));
-        await Write(colorCharacteristic, value);
+        await Write(colorCharacteristic, value, writeMode);
         LastColor = new LightColor(hue, saturation);
         Mode = LightMode.Color;
     }
@@ -242,10 +248,11 @@ public sealed class HueLight : IDisposable
         throw new InvalidOperationException(DescribeFailure("Read", result.Status, result.ProtocolError));
     }
 
-    private static async Task Write(GattCharacteristic? characteristic, byte[] value)
+    private static async Task Write(GattCharacteristic? characteristic, byte[] value, LightWriteMode writeMode = LightWriteMode.Confirmed)
     {
         var target = characteristic ?? throw new InvalidOperationException("Light is not connected.");
-        var result = await target.WriteValueWithResultAsync(value.AsBuffer(), GattWriteOption.WriteWithResponse);
+        var writeOption = writeMode == LightWriteMode.Fast ? GattWriteOption.WriteWithoutResponse : GattWriteOption.WriteWithResponse;
+        var result = await target.WriteValueWithResultAsync(value.AsBuffer(), writeOption);
         if (result.Status != GattCommunicationStatus.Success)
         {
             throw new InvalidOperationException(DescribeFailure("Write", result.Status, result.ProtocolError));
