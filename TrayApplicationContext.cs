@@ -22,6 +22,11 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open", null, (_, _) => mainForm.ShowNearTray());
+        menu.Items.Add("Add light...", null, (_, _) =>
+        {
+            mainForm.ShowNearTray();
+            mainForm.ShowAddLightDialog();
+        });
         menu.Items.Add(startWithWindowsItem);
         menu.Items.Add("Exit", null, (_, _) => ExitApplication());
 

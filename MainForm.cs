@@ -39,7 +39,10 @@ public sealed class MainForm : Form
     private const int EggChipGap = 7;
     private const int EggCancelChipWidth = 80;
     private const int EggCaptionTopOffset = 4;
-    private const int AddLightChipHeight = 38;
+    private const int MenuChipWidth = 30;
+    private const int MenuChipHeight = 28;
+    private const int MenuChipTop = 16;
+    private const int MenuChipGap = 12;
     private const int BrightnessSendDelayMilliseconds = 60;
     private const int TrayClickGuardMilliseconds = 300;
 
@@ -67,7 +70,8 @@ public sealed class MainForm : Form
     private readonly Label masterBrightnessValue = new() { AutoSize = false, TextAlign = ContentAlignment.MiddleRight, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
     private readonly ToggleSwitch autoToggle = new();
     private readonly Label autoSubtitleLabel = new() { AutoSize = false, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
-    private readonly Chip addLightChip = new() { Text = "+  Add light", Margin = new Padding(0) };
+    private readonly Chip menuChip = new() { Text = "...", Size = new Size(MenuChipWidth, MenuChipHeight) };
+    private readonly ContextMenuStrip headerMenu = new();
     private readonly System.Windows.Forms.Timer masterBrightnessTimer = new() { Interval = BrightnessSendDelayMilliseconds };
     private bool isAutoHideSuppressed;
     private bool isCelebrating;
@@ -89,9 +93,8 @@ public sealed class MainForm : Form
         ClientSize = new Size(ContentWidth, InitialHeight);
 
         panelHost.Padding = new Padding(SideMargin, HostTopPadding, SideMargin, HostBottomPadding);
-        addLightChip.Size = new Size(InnerWidth, AddLightChipHeight);
-        addLightChip.Click += (_, _) => ShowAddLightDialog();
-        panelHost.Controls.Add(addLightChip);
+        headerMenu.Items.Add("Add light...", null, (_, _) => ShowAddLightDialog());
+        menuChip.Click += (_, _) => headerMenu.Show(menuChip, new Point(0, menuChip.Height));
         BuildHeader();
         Controls.Add(panelHost);
         Controls.Add(header);
@@ -159,6 +162,7 @@ public sealed class MainForm : Form
         activeLights.Clear();
         sceneScheduler.Dispose();
         eggTimer.Dispose();
+        headerMenu.Dispose();
         toggleHotkey.Dispose();
     }
 
@@ -218,6 +222,7 @@ public sealed class MainForm : Form
         var titleLabel = new Label { Text = "Hue Desk", AutoSize = true, Font = Theme.TitleFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, TitleTop) };
         subtitleLabel.Location = new Point(SideMargin + SubtitleLeftOffset, SubtitleTop);
         masterToggle.Location = new Point(ContentWidth - SideMargin - masterToggle.Width, MasterToggleTop);
+        menuChip.Location = new Point(masterToggle.Left - MenuChipGap - MenuChipWidth, MenuChipTop);
 
         var brightnessCaption = new Label { Text = "All lights", AutoSize = false, Size = new Size(CaptionWidth, CaptionHeight), TextAlign = ContentAlignment.MiddleLeft, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, MasterRowTop) };
         var sliderLeft = SideMargin + CaptionWidth;
@@ -226,7 +231,7 @@ public sealed class MainForm : Form
         masterBrightnessValue.Size = new Size(ValueWidth, ValueHeight);
         masterBrightnessValue.Location = new Point(ContentWidth - SideMargin - ValueWidth, MasterRowTop);
 
-        header.Controls.AddRange([titleLabel, subtitleLabel, masterToggle, brightnessCaption, masterBrightness, masterBrightnessValue]);
+        header.Controls.AddRange([titleLabel, subtitleLabel, menuChip, masterToggle, brightnessCaption, masterBrightness, masterBrightnessValue]);
 
         for (var index = 0; index < Scenes.All.Count; index++)
         {
@@ -328,7 +333,6 @@ public sealed class MainForm : Form
         var panel = new LightPanel(light, RemoveLight);
         panel.LayoutHeightChanged += FitToContent;
         panelHost.Controls.Add(panel);
-        panelHost.Controls.SetChildIndex(panel, panelHost.Controls.IndexOf(addLightChip));
 
         light.StateChanged += _ => BeginInvokeIfCreated(RefreshMaster);
         light.ConnectionChanged += () => BeginInvokeIfCreated(() =>
@@ -385,7 +389,7 @@ public sealed class MainForm : Form
         }
     }
 
-    private void ShowAddLightDialog()
+    public void ShowAddLightDialog()
     {
         isAutoHideSuppressed = true;
         try
