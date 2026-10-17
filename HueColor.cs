@@ -2,6 +2,8 @@ namespace HueDesk;
 
 public static class HueColor
 {
+    private const double DegreesPerSector = 60;
+    private const double SectorCount = 6;
     private const double SrgbLinearThreshold = 0.04045;
     private const double SrgbLinearDivisor = 12.92;
     private const double SrgbOffset = 0.055;
@@ -30,6 +32,34 @@ public static class HueColor
             4 => (rising, low, value),
             _ => (value, low, falling),
         };
+    }
+
+    public static (double Hue, double Saturation, double Value) RgbToHsv(double red, double green, double blue)
+    {
+        var maximum = Math.Max(red, Math.Max(green, blue));
+        var minimum = Math.Min(red, Math.Min(green, blue));
+        var delta = maximum - minimum;
+        var saturation = maximum <= 0 ? 0 : delta / maximum;
+        if (delta <= 0)
+        {
+            return (0, saturation, maximum);
+        }
+
+        double hue;
+        if (maximum == red)
+        {
+            hue = DegreesPerSector * (((green - blue) / delta) % SectorCount);
+        }
+        else if (maximum == green)
+        {
+            hue = DegreesPerSector * ((blue - red) / delta + 2);
+        }
+        else
+        {
+            hue = DegreesPerSector * ((red - green) / delta + 4);
+        }
+
+        return (hue < 0 ? hue + DegreesPerSector * SectorCount : hue, saturation, maximum);
     }
 
     public static (double X, double Y) ToChromaticity(double hue, double saturation)

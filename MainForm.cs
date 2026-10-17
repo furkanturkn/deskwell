@@ -8,7 +8,7 @@ public sealed class MainForm : Form
     private const int DwmRoundCorner = 2;
     private const int ContentWidth = 380;
     private const int InitialHeight = 520;
-    private const int HeaderHeight = 266;
+    private const int HeaderHeight = 322;
     private const int SideMargin = 16;
     private const int InnerWidth = ContentWidth - 2 * SideMargin;
     private const int ScreenEdgeGap = 12;
@@ -33,6 +33,9 @@ public sealed class MainForm : Form
     private const int AutoRowTop = 162;
     private const int AutoSubtitleTop = 190;
     private const int AutoSubtitleHeight = 18;
+    private const int SyncRowTop = 270;
+    private const int SyncSubtitleTop = 298;
+    private const int SyncSubtitleHeight = 18;
     private const int EggRowTop = 226;
     private const int EggChipWidth = 72;
     private const int EggChipHeight = 30;
@@ -51,6 +54,8 @@ public sealed class MainForm : Form
     private readonly SceneScheduler sceneScheduler;
     private readonly GlobalHotkey toggleHotkey;
     private readonly EggTimer eggTimer = new();
+    private readonly ScreenSync screenSync;
+    private readonly ToggleSwitch syncToggle = new();
     private readonly List<Chip> eggPresetChips = [];
     private readonly Label eggCountdownLabel = new() { AutoSize = true, Font = Theme.HeadingFont, ForeColor = Theme.Accent, BackColor = Color.Transparent, Visible = false };
     private readonly Chip eggCancelChip = new() { Text = "Cancel", Visible = false };
@@ -80,7 +85,8 @@ public sealed class MainForm : Form
     public MainForm(LightRegistry registry)
     {
         this.registry = registry;
-        sceneScheduler = new SceneScheduler(AppSettings.Load(), () => ConnectedLights);
+        screenSync = new ScreenSync(() => ConnectedLights);
+        sceneScheduler = new SceneScheduler(AppSettings.Load(), () => ConnectedLights, () => screenSync.IsEnabled);
         sceneScheduler.Ticked += RefreshAutoSubtitle;
 
         Text = "Hue Desk";
@@ -161,6 +167,8 @@ public sealed class MainForm : Form
 
         activeLights.Clear();
         sceneScheduler.Dispose();
+        screenSync.Stop();
+        screenSync.Dispose();
         eggTimer.Dispose();
         headerMenu.Dispose();
         toggleHotkey.Dispose();
@@ -249,6 +257,7 @@ public sealed class MainForm : Form
         header.Controls.AddRange([autoTitle, autoSubtitleLabel, autoToggle]);
 
         BuildEggTimerRow();
+        BuildScreenSyncRow();
 
         masterToggle.CheckedChanged += (_, _) => SetPowerOfAll(masterToggle.Checked);
         masterBrightness.ValueChanged += (_, _) => masterBrightnessValue.Text = $"{(int)Math.Round(masterBrightness.Value * 100.0 / HueProtocol.MaximumBrightness)}%";
@@ -284,6 +293,24 @@ public sealed class MainForm : Form
         header.Controls.AddRange([eggCountdownLabel, eggCancelChip]);
     }
 
+    private void BuildScreenSyncRow()
+    {
+        var title = new Label { Text = "Screen sync", AutoSize = true, Font = Theme.BodyFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, SyncRowTop) };
+        var subtitle = new Label { Text = "Lights follow the colors on your screen", AutoSize = false, Size = new Size(InnerWidth, SyncSubtitleHeight), Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, SyncSubtitleTop) };
+        syncToggle.Location = new Point(ContentWidth - SideMargin - syncToggle.Width, SyncRowTop);
+        syncToggle.CheckedChanged += (_, _) =>
+        {
+            if (syncToggle.Checked)
+            {
+                screenSync.Start();
+                return;
+            }
+
+            screenSync.Stop();
+        };
+        header.Controls.AddRange([title, subtitle, syncToggle]);
+    }
+
     private void StartEggTimer(EggPreset preset)
     {
         if (!isCelebrating)
@@ -315,12 +342,14 @@ public sealed class MainForm : Form
     private async Task PlayEggCelebration()
     {
         isCelebrating = true;
+        screenSync.IsSuspended = true;
         try
         {
             await LightShow.PlayCelebration(ConnectedLights.ToList());
         }
         finally
         {
+            screenSync.IsSuspended = false;
             isCelebrating = false;
         }
     }

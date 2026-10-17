@@ -6,15 +6,17 @@ public sealed class SceneScheduler : IDisposable
 
     private readonly AppSettings settings;
     private readonly Func<IEnumerable<HueLight>> connectedLights;
+    private readonly Func<bool> isPaused;
     private readonly HashSet<HueLight> lightsInCurrentScene = [];
     private readonly System.Windows.Forms.Timer timer = new() { Interval = CheckIntervalSeconds * 1000 };
     private string? trackedSceneName;
     private bool isCurrentSceneAlreadyOnLights;
 
-    public SceneScheduler(AppSettings settings, Func<IEnumerable<HueLight>> connectedLights)
+    public SceneScheduler(AppSettings settings, Func<IEnumerable<HueLight>> connectedLights, Func<bool> isPaused)
     {
         this.settings = settings;
         this.connectedLights = connectedLights;
+        this.isPaused = isPaused;
         timer.Tick += (_, _) =>
         {
             ApplyDue();
@@ -42,7 +44,7 @@ public sealed class SceneScheduler : IDisposable
 
     public void ApplyDue()
     {
-        if (!IsEnabled)
+        if (!IsEnabled || isPaused())
         {
             return;
         }
