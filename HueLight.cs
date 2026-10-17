@@ -12,7 +12,18 @@ public enum ConnectionState
     Connected,
 }
 
+public enum LightMode
+{
+    White,
+    Color,
+}
+
 public sealed record LightState(bool IsOn, byte Brightness, ushort TemperatureMirek);
+
+public sealed record LightColor(double Hue, double Saturation);
+
+public sealed record LightSnapshot(LightState State, LightMode Mode, LightColor? Color);
+
 public sealed class HueLight : IDisposable
 {
     private static readonly TimeSpan MinimumRetryDelay = TimeSpan.FromSeconds(1);
@@ -43,6 +54,10 @@ public sealed class HueLight : IDisposable
 
     public LightState? LastState { get; private set; }
 
+    public LightMode Mode { get; private set; } = LightMode.White;
+
+    public LightColor? LastColor { get; private set; }
+
     public void StartKeepingConnected()
     {
         _ = Task.Run(() => KeepConnected(lifetime.Token));
@@ -65,16 +80,40 @@ public sealed class HueLight : IDisposable
     {
         var clampedTemperature = Math.Clamp(temperatureMirek, HueProtocol.MinimumTemperatureMirek, HueProtocol.MaximumTemperatureMirek);
         await Write(temperatureCharacteristic, BitConverter.GetBytes(clampedTemperature));
+        Mode = LightMode.White;
         UpdateState(state => state with { TemperatureMirek = clampedTemperature });
     }
 
-    public Task SetColor(double hue, double saturation)
+    public async Task SetColor(double hue, double saturation)
     {
         var (chromaticityX, chromaticityY) = HueColor.ToChromaticity(hue, saturation);
         var value = new byte[4];
         BitConverter.TryWriteBytes(value.AsSpan(0, 2), (ushort)Math.Round(chromaticityX * ushort.MaxValue));
         BitConverter.TryWriteBytes(value.AsSpan(2, 2), (ushort)Math.Round(chromaticityY * ushort.MaxValue));
-        return Write(colorCharacteristic, value);
+        await Write(colorCharacteristic, value);
+        LastColor = new LightColor(hue, saturation);
+        Mode = LightMode.Color;
+    }
+
+    public LightSnapshot? CaptureSnapshot()
+    {
+        var state = LastState;
+        return state is null ? null : new LightSnapshot(state, Mode, LastColor);
+    }
+
+    public async Task Restore(LightSnapshot snapshot)
+    {
+        await SetBrightness(snapshot.State.Brightness);
+        if (snapshot.Mode == LightMode.Color && snapshot.Color is { } color)
+        {
+            await SetColor(color.Hue, color.Saturation);
+        }
+        else
+        {
+            await SetTemperature(snapshot.State.TemperatureMirek);
+        }
+
+        await SetPower(snapshot.State.IsOn);
     }
 
     public async Task ApplyScene(Scene scene)

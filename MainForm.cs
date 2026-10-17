@@ -8,7 +8,7 @@ public sealed class MainForm : Form
     private const int DwmRoundCorner = 2;
     private const int ContentWidth = 380;
     private const int InitialHeight = 520;
-    private const int HeaderHeight = 214;
+    private const int HeaderHeight = 266;
     private const int SideMargin = 16;
     private const int InnerWidth = ContentWidth - 2 * SideMargin;
     private const int ScreenEdgeGap = 12;
@@ -33,6 +33,12 @@ public sealed class MainForm : Form
     private const int AutoRowTop = 162;
     private const int AutoSubtitleTop = 190;
     private const int AutoSubtitleHeight = 18;
+    private const int EggRowTop = 226;
+    private const int EggChipWidth = 72;
+    private const int EggChipHeight = 30;
+    private const int EggChipGap = 7;
+    private const int EggCancelChipWidth = 80;
+    private const int EggCaptionTopOffset = 4;
     private const int AddLightChipHeight = 38;
     private const int BrightnessSendDelayMilliseconds = 60;
     private const int TrayClickGuardMilliseconds = 300;
@@ -41,6 +47,10 @@ public sealed class MainForm : Form
     private readonly List<HueLight> activeLights = [];
     private readonly SceneScheduler sceneScheduler;
     private readonly GlobalHotkey toggleHotkey;
+    private readonly EggTimer eggTimer = new();
+    private readonly List<Chip> eggPresetChips = [];
+    private readonly Label eggCountdownLabel = new() { AutoSize = true, Font = Theme.HeadingFont, ForeColor = Theme.Accent, BackColor = Color.Transparent, Visible = false };
+    private readonly Chip eggCancelChip = new() { Text = "Cancel", Visible = false };
     private readonly FlowLayoutPanel panelHost = new()
     {
         Dock = DockStyle.Fill,
@@ -60,6 +70,7 @@ public sealed class MainForm : Form
     private readonly Chip addLightChip = new() { Text = "+  Add light", Margin = new Padding(0) };
     private readonly System.Windows.Forms.Timer masterBrightnessTimer = new() { Interval = BrightnessSendDelayMilliseconds };
     private bool isAutoHideSuppressed;
+    private bool isCelebrating;
     private DateTime lastAutoHideTime = DateTime.MinValue;
 
     public MainForm(LightRegistry registry)
@@ -86,6 +97,8 @@ public sealed class MainForm : Form
         Controls.Add(header);
 
         masterBrightnessTimer.Tick += (_, _) => SendMasterBrightness();
+        eggTimer.Changed += RefreshEggTimer;
+        eggTimer.Finished += OnEggTimerFinished;
 
         toggleHotkey = new GlobalHotkey(HotkeyModifiers.Control | HotkeyModifiers.Alt, Keys.L);
         toggleHotkey.Pressed += ToggleNearTray;
@@ -99,6 +112,8 @@ public sealed class MainForm : Form
 
         FitToContent();
     }
+
+    public event Action? EggTimerFinished;
 
     public bool HasLights => activeLights.Count > 0;
 
@@ -143,6 +158,7 @@ public sealed class MainForm : Form
 
         activeLights.Clear();
         sceneScheduler.Dispose();
+        eggTimer.Dispose();
         toggleHotkey.Dispose();
     }
 
@@ -227,6 +243,8 @@ public sealed class MainForm : Form
         autoToggle.SetCheckedSilently(sceneScheduler.IsEnabled);
         header.Controls.AddRange([autoTitle, autoSubtitleLabel, autoToggle]);
 
+        BuildEggTimerRow();
+
         masterToggle.CheckedChanged += (_, _) => SetPowerOfAll(masterToggle.Checked);
         masterBrightness.ValueChanged += (_, _) => masterBrightnessValue.Text = $"{(int)Math.Round(masterBrightness.Value * 100.0 / HueProtocol.MaximumBrightness)}%";
         masterBrightness.UserChanged += (_, _) => masterBrightnessTimer.Start();
@@ -237,6 +255,69 @@ public sealed class MainForm : Form
         };
         masterBrightness.SetValueSilently(HueProtocol.MaximumBrightness);
         RefreshAutoSubtitle();
+    }
+
+    private void BuildEggTimerRow()
+    {
+        var caption = new Label { Text = "Egg timer", AutoSize = false, Size = new Size(CaptionWidth, CaptionHeight), TextAlign = ContentAlignment.MiddleLeft, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, EggRowTop + EggCaptionTopOffset) };
+        header.Controls.Add(caption);
+
+        var chipLeft = SideMargin + CaptionWidth;
+        for (var index = 0; index < EggTimer.Presets.Count; index++)
+        {
+            var preset = EggTimer.Presets[index];
+            var chip = new Chip { Text = $"{preset.Name} {preset.Minutes}m", Size = new Size(EggChipWidth, EggChipHeight), Location = new Point(chipLeft + index * (EggChipWidth + EggChipGap), EggRowTop) };
+            chip.Click += (_, _) => StartEggTimer(preset);
+            eggPresetChips.Add(chip);
+            header.Controls.Add(chip);
+        }
+
+        eggCountdownLabel.Location = new Point(chipLeft, EggRowTop + EggCaptionTopOffset);
+        eggCancelChip.Size = new Size(EggCancelChipWidth, EggChipHeight);
+        eggCancelChip.Location = new Point(ContentWidth - SideMargin - EggCancelChipWidth, EggRowTop);
+        eggCancelChip.Click += (_, _) => eggTimer.Cancel();
+        header.Controls.AddRange([eggCountdownLabel, eggCancelChip]);
+    }
+
+    private void StartEggTimer(EggPreset preset)
+    {
+        if (!isCelebrating)
+        {
+            eggTimer.Start(preset.Duration);
+        }
+    }
+
+    private void RefreshEggTimer()
+    {
+        var isRunning = eggTimer.IsRunning;
+        foreach (var chip in eggPresetChips)
+        {
+            chip.Visible = !isRunning;
+        }
+
+        eggCountdownLabel.Visible = isRunning;
+        eggCancelChip.Visible = isRunning;
+        var remaining = eggTimer.Remaining;
+        eggCountdownLabel.Text = $"{(int)remaining.TotalMinutes:00}:{remaining.Seconds:00}";
+    }
+
+    private void OnEggTimerFinished()
+    {
+        EggTimerFinished?.Invoke();
+        _ = PlayEggCelebration();
+    }
+
+    private async Task PlayEggCelebration()
+    {
+        isCelebrating = true;
+        try
+        {
+            await LightShow.PlayCelebration(ConnectedLights.ToList());
+        }
+        finally
+        {
+            isCelebrating = false;
+        }
     }
 
     private void StartLight(SavedLight savedLight)

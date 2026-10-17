@@ -7,6 +7,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private const string StartupRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string StartupValueName = "HueDesk";
     private const string StartupMarkerFileName = "startup-configured";
+    private const int EggBalloonMilliseconds = 10000;
 
     private readonly NotifyIcon notifyIcon;
     private readonly MainForm mainForm;
@@ -31,6 +32,11 @@ public sealed class TrayApplicationContext : ApplicationContext
             Text = "Hue Desk",
             ContextMenuStrip = menu,
             Visible = true,
+        };
+        mainForm.EggTimerFinished += () =>
+        {
+            System.Media.SystemSounds.Exclamation.Play();
+            notifyIcon.ShowBalloonTip(EggBalloonMilliseconds, "Egg timer", "Your eggs are ready.", ToolTipIcon.Info);
         };
         notifyIcon.MouseClick += (_, clicked) =>
         {
