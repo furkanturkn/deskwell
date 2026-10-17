@@ -19,12 +19,11 @@ public sealed class LightPanel : Panel
     private const int CardBottomMargin = 12;
     private const int NameTop = 12;
     private const int StatusTop = 36;
-    private const int StatusWidth = 150;
+    private const int StatusWidth = 210;
     private const int StatusHeight = 18;
-    private const int ToggleTop = 16;
+    private const int ToggleTop = 14;
     private const int MenuTop = 14;
     private const int MenuGap = 12;
-    private const int ToggleGap = 8;
     private const int MenuChipWidth = 30;
     private const int MenuChipHeight = 28;
     private const int ModeSwitchHeight = 30;
@@ -47,9 +46,7 @@ public sealed class LightPanel : Panel
     private readonly HueLight light;
     private readonly Label nameLabel = CreateLabel(Theme.HeadingFont, Theme.TextPrimary);
     private readonly Label statusLabel = CreateLabel(Theme.SmallFont, Theme.TextSecondary);
-    private readonly ToggleSwitch powerToggle = new() { Icon = ToggleIcon.Bulb };
-    private readonly ToggleSwitch linkToggle = new() { Icon = ToggleIcon.Link };
-    private readonly ToolTip toolTip = new();
+    private readonly PowerButton powerToggle = new() { Icon = PowerIcon.Bulb };
     private readonly Chip menuChip = new() { Text = "...", Size = new Size(MenuChipWidth, MenuChipHeight) };
     private readonly ContextMenuStrip menu = new();
     private readonly ModernSlider brightnessSlider = new() { Minimum = HueProtocol.MinimumBrightness, Maximum = HueProtocol.MaximumBrightness };
@@ -84,11 +81,12 @@ public sealed class LightPanel : Panel
         statusLabel.Location = new Point(CardPadding, StatusTop);
         statusLabel.Size = new Size(StatusWidth, StatusHeight);
         powerToggle.Location = new Point(CardWidth - CardPadding - powerToggle.Width, ToggleTop);
-        linkToggle.Location = new Point(powerToggle.Left - ToggleGap - linkToggle.Width, ToggleTop);
-        menuChip.Location = new Point(linkToggle.Left - MenuGap - menuChip.Width, MenuTop);
-        toolTip.SetToolTip(powerToggle, "Light on / off");
-        toolTip.SetToolTip(linkToggle, "Connected / released (free for the phone app)");
+        menuChip.Location = new Point(powerToggle.Left - MenuGap - menuChip.Width, MenuTop);
         menu.Items.Add("Reset light", null, (_, _) => _ = LightCommands.RunSafely(light, light.ResetToDefault));
+        var connectionItem = new ToolStripMenuItem();
+        connectionItem.Click += (_, _) => ChangeConnection(light.IsReleased);
+        menu.Items.Add(connectionItem);
+        menu.Opening += (_, _) => connectionItem.Text = light.IsReleased ? "Reconnect to this PC" : "Release (free for phone app)";
         menu.Items.Add("Remove light", null, (_, _) => onRemoveRequested(light.SavedLight));
         menuChip.Click += (_, _) => menu.Show(menuChip, new Point(0, menuChip.Height));
 
@@ -103,14 +101,13 @@ public sealed class LightPanel : Panel
         swatchRow.Size = new Size(CardWidth - 2 * CardPadding, SwatchHeight);
         colorControls.Add(swatchRow);
 
-        Controls.AddRange([nameLabel, statusLabel, menuChip, linkToggle, powerToggle, modeSwitch, swatchRow]);
+        Controls.AddRange([nameLabel, statusLabel, menuChip, powerToggle, modeSwitch, swatchRow]);
 
         saturationSlider.SetValueSilently(100);
         UpdateSaturationGradient();
         ShowMode(0);
 
         powerToggle.CheckedChanged += async (_, _) => await RunCommand(() => light.SetPower(powerToggle.Checked));
-        linkToggle.CheckedChanged += (_, _) => ChangeConnection(linkToggle.Checked);
         modeSwitch.SelectedChanged += (_, _) => ShowMode(modeSwitch.SelectedIndex);
         brightnessSlider.UserChanged += (_, _) => QueueSend(brightness: true);
         warmthSlider.UserChanged += (_, _) => QueueSend(warmth: true);
@@ -163,7 +160,6 @@ public sealed class LightPanel : Panel
         {
             sendTimer.Dispose();
             menu.Dispose();
-            toolTip.Dispose();
         }
 
         base.Dispose(disposing);
@@ -245,7 +241,6 @@ public sealed class LightPanel : Panel
             _ => light.LastError is null ? "● Reconnecting…" : $"● Reconnecting… {light.LastError}",
         };
         statusLabel.ForeColor = isConnected ? Theme.Success : light.IsReleased ? Theme.TextSecondary : Theme.Warning;
-        linkToggle.SetCheckedSilently(!light.IsReleased);
 
         powerToggle.Enabled = isConnected;
         brightnessSlider.Enabled = isConnected;

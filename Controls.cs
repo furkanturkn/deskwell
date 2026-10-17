@@ -2,21 +2,9 @@ using System.Drawing.Drawing2D;
 
 namespace HueDesk;
 
-public enum ToggleIcon
-{
-    None,
-    Power,
-    Bulb,
-    Link,
-}
-
 public sealed class ToggleSwitch : Control
 {
-    private const float IconSizeFraction = 0.56f;
-    private const float IconPenWidth = 1.6f;
-
     private bool isChecked;
-    private ToggleIcon icon;
 
     public ToggleSwitch()
     {
@@ -26,16 +14,6 @@ public sealed class ToggleSwitch : Control
     }
 
     public event EventHandler? CheckedChanged;
-
-    public ToggleIcon Icon
-    {
-        get => icon;
-        set
-        {
-            icon = value;
-            Invalidate();
-        }
-    }
 
     public bool Checked
     {
@@ -96,35 +74,6 @@ public sealed class ToggleSwitch : Control
         var knobLeft = isChecked ? Width - knobDiameter - 4 : 4;
         using var knobBrush = new SolidBrush(knobColor);
         graphics.FillEllipse(knobBrush, knobLeft, 4, knobDiameter - 1, knobDiameter - 1);
-        DrawIcon(graphics, new PointF(knobLeft + (knobDiameter - 1) / 2f, 4 + (knobDiameter - 1) / 2f), (knobDiameter - 1) * IconSizeFraction, trackColor);
-    }
-
-    private void DrawIcon(Graphics graphics, PointF center, float size, Color color)
-    {
-        using var pen = new Pen(color, IconPenWidth) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-        var half = size / 2;
-        switch (icon)
-        {
-            case ToggleIcon.Power:
-                graphics.DrawArc(pen, center.X - half, center.Y - half, size, size, -60, 300);
-                graphics.DrawLine(pen, center.X, center.Y - half - 0.5f, center.X, center.Y - size * 0.05f);
-                break;
-            case ToggleIcon.Bulb:
-                graphics.DrawEllipse(pen, center.X - size * 0.36f, center.Y - half, size * 0.72f, size * 0.72f);
-                graphics.DrawLine(pen, center.X - size * 0.2f, center.Y + size * 0.4f, center.X + size * 0.2f, center.Y + size * 0.4f);
-                graphics.DrawLine(pen, center.X - size * 0.12f, center.Y + size * 0.56f, center.X + size * 0.12f, center.Y + size * 0.56f);
-                break;
-            case ToggleIcon.Link:
-                DrawLinkRing(graphics, pen, new RectangleF(center.X - half - 1, center.Y - size * 0.22f, size * 0.66f, size * 0.44f));
-                DrawLinkRing(graphics, pen, new RectangleF(center.X + half - size * 0.66f + 1, center.Y - size * 0.22f, size * 0.66f, size * 0.44f));
-                break;
-        }
-    }
-
-    private static void DrawLinkRing(Graphics graphics, Pen pen, RectangleF bounds)
-    {
-        using var path = Theme.RoundedRectangle(bounds, bounds.Height / 2f);
-        graphics.DrawPath(pen, path);
     }
 }
 
@@ -489,5 +438,102 @@ public sealed class Chip : Control
         using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         using var textBrush = new SolidBrush(Enabled ? Theme.TextPrimary : Theme.TextSecondary);
         graphics.DrawString(Text, Font, textBrush, new RectangleF(0, 0, Width, Height - 1), format);
+    }
+}
+
+public enum PowerIcon
+{
+    Power,
+    Bulb,
+}
+
+public sealed class PowerButton : Control
+{
+    private const float IconSizeFraction = 0.46f;
+    private const float IconPenWidth = 1.8f;
+
+    private bool isChecked;
+
+    public PowerButton()
+    {
+        DoubleBuffered = true;
+        Size = new Size(30, 30);
+        Cursor = Cursors.Hand;
+    }
+
+    public event EventHandler? CheckedChanged;
+
+    public PowerIcon Icon { get; set; } = PowerIcon.Power;
+
+    public bool Checked
+    {
+        get => isChecked;
+        set
+        {
+            if (isChecked == value)
+            {
+                return;
+            }
+
+            isChecked = value;
+            Invalidate();
+            CheckedChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public void SetCheckedSilently(bool value)
+    {
+        isChecked = value;
+        Invalidate();
+    }
+
+    protected override void OnClick(EventArgs eventArgs)
+    {
+        base.OnClick(eventArgs);
+        if (Enabled)
+        {
+            Checked = !Checked;
+        }
+    }
+
+    protected override void OnEnabledChanged(EventArgs eventArgs)
+    {
+        base.OnEnabledChanged(eventArgs);
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs paintEventArgs)
+    {
+        var graphics = paintEventArgs.Graphics;
+        graphics.Clear(BackColor);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+        var fillColor = isChecked ? Theme.Accent : Theme.Chip;
+        var iconColor = isChecked ? Theme.OnAccent : Theme.TextSecondary;
+        if (!Enabled)
+        {
+            fillColor = Color.FromArgb(50, 50, 58);
+            iconColor = Color.FromArgb(90, 90, 100);
+        }
+
+        using var fillBrush = new SolidBrush(fillColor);
+        graphics.FillEllipse(fillBrush, 0, 0, Width - 1, Height - 1);
+        DrawIcon(graphics, new PointF((Width - 1) / 2f, (Height - 1) / 2f), Width * IconSizeFraction, iconColor);
+    }
+
+    private void DrawIcon(Graphics graphics, PointF center, float size, Color color)
+    {
+        using var pen = new Pen(color, IconPenWidth) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        var half = size / 2;
+        if (Icon == PowerIcon.Power)
+        {
+            graphics.DrawArc(pen, center.X - half, center.Y - half, size, size, -60, 300);
+            graphics.DrawLine(pen, center.X, center.Y - half - 1, center.X, center.Y - size * 0.05f);
+            return;
+        }
+
+        graphics.DrawEllipse(pen, center.X - size * 0.36f, center.Y - half, size * 0.72f, size * 0.72f);
+        graphics.DrawLine(pen, center.X - size * 0.2f, center.Y + size * 0.4f, center.X + size * 0.2f, center.Y + size * 0.4f);
+        graphics.DrawLine(pen, center.X - size * 0.12f, center.Y + size * 0.58f, center.X + size * 0.12f, center.Y + size * 0.58f);
     }
 }
