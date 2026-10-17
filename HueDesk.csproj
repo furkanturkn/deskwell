@@ -13,4 +13,8 @@
     <RootNamespace>HueDesk</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.2" />
+  </ItemGroup>
+
 </Project>
