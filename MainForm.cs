@@ -59,6 +59,7 @@ public sealed class MainForm : Form
     private const int MenuChipHeight = 28;
     private const int MenuChipTop = 16;
     private const int MenuChipGap = 12;
+    private const int ToggleGap = 8;
     private const int BrightnessSendDelayMilliseconds = 60;
     private const int TrayClickGuardMilliseconds = 300;
 
@@ -90,7 +91,9 @@ public sealed class MainForm : Form
     private readonly Panel toolsPage = new() { Dock = DockStyle.Fill, BackColor = Theme.Background, Visible = false };
     private readonly Panel header = new() { Dock = DockStyle.Top, Height = HeaderHeight, BackColor = Theme.Background };
     private readonly Label subtitleLabel = new() { AutoSize = true, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
-    private readonly ToggleSwitch masterToggle = new();
+    private readonly ToggleSwitch masterToggle = new() { Icon = ToggleIcon.Power };
+    private readonly ToggleSwitch connectionToggle = new() { Icon = ToggleIcon.Link };
+    private readonly ToolTip toolTip = new();
     private readonly ModernSlider masterBrightness = new() { Minimum = HueProtocol.MinimumBrightness, Maximum = HueProtocol.MaximumBrightness };
     private readonly Label masterBrightnessValue = new() { AutoSize = false, TextAlign = ContentAlignment.MiddleRight, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
     private readonly ToggleSwitch autoToggle = new();
@@ -196,6 +199,7 @@ public sealed class MainForm : Form
         screenSync.Dispose();
         eggTimer.Dispose();
         headerMenu.Dispose();
+        toolTip.Dispose();
         toggleHotkey.Dispose();
     }
 
@@ -255,7 +259,10 @@ public sealed class MainForm : Form
         var titleLabel = new Label { Text = "Hue Desk", AutoSize = true, Font = Theme.TitleFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, TitleTop) };
         subtitleLabel.Location = new Point(SideMargin + SubtitleLeftOffset, SubtitleTop);
         masterToggle.Location = new Point(ContentWidth - SideMargin - masterToggle.Width, MasterToggleTop);
-        menuChip.Location = new Point(masterToggle.Left - MenuChipGap - MenuChipWidth, MenuChipTop);
+        connectionToggle.Location = new Point(masterToggle.Left - ToggleGap - connectionToggle.Width, MasterToggleTop);
+        menuChip.Location = new Point(connectionToggle.Left - MenuChipGap - MenuChipWidth, MenuChipTop);
+        toolTip.SetToolTip(masterToggle, "All lights on / off");
+        toolTip.SetToolTip(connectionToggle, "Connect / release all lights (free them for the phone app)");
 
         var brightnessCaption = new Label { Text = "All lights", AutoSize = false, Size = new Size(CaptionWidth, CaptionHeight), TextAlign = ContentAlignment.MiddleLeft, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, MasterRowTop) };
         var sliderLeft = SideMargin + CaptionWidth;
@@ -267,7 +274,7 @@ public sealed class MainForm : Form
         tabSwitch.Location = new Point(SideMargin, TabsTop);
         tabSwitch.Size = new Size(InnerWidth, TabsHeight);
         tabSwitch.SelectedChanged += (_, _) => ShowTab(tabSwitch.SelectedIndex);
-        header.Controls.AddRange([titleLabel, subtitleLabel, menuChip, masterToggle, brightnessCaption, masterBrightness, masterBrightnessValue, tabSwitch]);
+        header.Controls.AddRange([titleLabel, subtitleLabel, menuChip, connectionToggle, masterToggle, brightnessCaption, masterBrightness, masterBrightnessValue, tabSwitch]);
 
         for (var index = 0; index < Scenes.All.Count; index++)
         {
@@ -288,6 +295,7 @@ public sealed class MainForm : Form
         BuildScreenSyncRow();
 
         masterToggle.CheckedChanged += (_, _) => SetPowerOfAll(masterToggle.Checked);
+        connectionToggle.CheckedChanged += (_, _) => ChangeConnectionOfAll(connectionToggle.Checked);
         masterBrightness.ValueChanged += (_, _) => masterBrightnessValue.Text = $"{(int)Math.Round(masterBrightness.Value * 100.0 / HueProtocol.MaximumBrightness)}%";
         masterBrightness.UserChanged += (_, _) => masterBrightnessTimer.Start();
         autoToggle.CheckedChanged += (_, _) =>
@@ -575,6 +583,8 @@ public sealed class MainForm : Form
         var knownStates = connectedLights.Select(light => light.LastState).OfType<LightState>().ToList();
         masterToggle.SetCheckedSilently(knownStates.Any(state => state.IsOn));
         masterToggle.Enabled = connectedLights.Count > 0;
+        connectionToggle.SetCheckedSilently(activeLights.Any(light => !light.IsReleased));
+        connectionToggle.Enabled = activeLights.Count > 0;
         masterBrightness.Enabled = connectedLights.Count > 0;
         if (knownStates.Count > 0)
         {
@@ -589,6 +599,20 @@ public sealed class MainForm : Form
         subtitleLabel.Text = eggTimer.IsRunning
             ? $"Egg timer {(int)remaining.TotalMinutes:00}:{remaining.Seconds:00}"
             : lightsSummary;
+    }
+
+    private void ChangeConnectionOfAll(bool shouldBeConnected)
+    {
+        foreach (var light in activeLights)
+        {
+            if (shouldBeConnected)
+            {
+                light.StartKeepingConnected();
+                continue;
+            }
+
+            light.Release();
+        }
     }
 
     private void SetPowerOfAll(bool isOn)

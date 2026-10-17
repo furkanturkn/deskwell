@@ -10,6 +10,7 @@ public enum ConnectionState
     Disconnected,
     Connecting,
     Connected,
+    Released,
 }
 
 public enum LightWriteMode
@@ -35,7 +36,8 @@ public sealed class HueLight : IDisposable
     private static readonly TimeSpan MinimumRetryDelay = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromSeconds(8);
 
-    private readonly CancellationTokenSource lifetime = new();
+    private CancellationTokenSource? connectionLoop;
+    private bool isReleased;
     private GattCharacteristic? powerCharacteristic;
     private GattCharacteristic? brightnessCharacteristic;
     private GattCharacteristic? temperatureCharacteristic;
@@ -64,9 +66,34 @@ public sealed class HueLight : IDisposable
 
     public LightColor? LastColor { get; private set; }
 
+    public bool IsReleased => isReleased;
+
     public void StartKeepingConnected()
     {
-        _ = Task.Run(() => KeepConnected(lifetime.Token));
+        if (connectionLoop is not null)
+        {
+            return;
+        }
+
+        isReleased = false;
+        var loop = new CancellationTokenSource();
+        connectionLoop = loop;
+        _ = Task.Run(() => KeepConnected(loop.Token));
+    }
+
+    public void Release()
+    {
+        if (connectionLoop is null)
+        {
+            return;
+        }
+
+        isReleased = true;
+        connectionLoop.Cancel();
+        connectionLoop.Dispose();
+        connectionLoop = null;
+        ClearCharacteristics();
+        SetConnection(ConnectionState.Released);
     }
 
     public async Task SetPower(bool isOn)
@@ -145,8 +172,8 @@ public sealed class HueLight : IDisposable
 
     public void Dispose()
     {
-        lifetime.Cancel();
-        lifetime.Dispose();
+        connectionLoop?.Cancel();
+        connectionLoop?.Dispose();
     }
 
     private async Task KeepConnected(CancellationToken cancellationToken)
@@ -299,6 +326,11 @@ public sealed class HueLight : IDisposable
 
     private void SetConnection(ConnectionState connection)
     {
+        if (isReleased && connection != ConnectionState.Released)
+        {
+            return;
+        }
+
         if (Connection == connection)
         {
             return;
