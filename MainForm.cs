@@ -326,7 +326,7 @@ public sealed class MainForm : Form
 
     private void BuildSmoothnessRow()
     {
-        var caption = new Label { Text = "Smoothness", AutoSize = false, Size = new Size(CaptionWidth, CaptionHeight), TextAlign = ContentAlignment.MiddleLeft, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, SmoothnessRowTop) };
+        var caption = new Label { Text = "Softness", AutoSize = false, Size = new Size(CaptionWidth, CaptionHeight), TextAlign = ContentAlignment.MiddleLeft, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, SmoothnessRowTop) };
         var resetChip = new Chip { Text = "Reset", Size = new Size(SmoothnessChipWidth, SmoothnessChipHeight), Location = new Point(ContentWidth - SideMargin - SmoothnessChipWidth, SmoothnessRowTop) };
         var valueLeft = resetChip.Left - SmoothnessChipGap - ValueWidth;
         var sliderLeft = SideMargin + CaptionWidth;
