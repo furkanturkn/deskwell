@@ -8,7 +8,14 @@ public sealed class MainForm : Form
     private const int DwmRoundCorner = 2;
     private const int ContentWidth = 380;
     private const int InitialHeight = 520;
-    private const int HeaderHeight = 362;
+    private const int HeaderHeight = 162;
+    private const int TabsTop = 120;
+    private const int TabsHeight = 30;
+    private const int ScenesPageHeight = 116;
+    private const int ToolsPageHeight = 152;
+    private const int LightsTabIndex = 0;
+    private const int ScenesTabIndex = 1;
+    private const int ToolsTabIndex = 2;
     private const int SideMargin = 16;
     private const int InnerWidth = ContentWidth - 2 * SideMargin;
     private const int ScreenEdgeGap = 12;
@@ -26,26 +33,26 @@ public sealed class MainForm : Form
     private const int CaptionHeight = 22;
     private const int SliderHeight = 26;
     private const int SliderRightGap = 4;
-    private const int ScenesTop = 116;
+    private const int ScenesTop = 8;
     private const int SceneChipWidth = 64;
     private const int SceneChipHeight = 30;
     private const int SceneChipGap = 7;
-    private const int AutoRowTop = 162;
-    private const int AutoSubtitleTop = 190;
+    private const int AutoRowTop = 56;
+    private const int AutoSubtitleTop = 84;
     private const int AutoSubtitleHeight = 18;
-    private const int SyncRowTop = 270;
-    private const int SyncSubtitleTop = 298;
+    private const int SyncRowTop = 56;
+    private const int SyncSubtitleTop = 84;
     private const int SyncSubtitleHeight = 18;
-    private const int SmoothnessRowTop = 326;
+    private const int SmoothnessRowTop = 118;
     private const int SmoothnessChipWidth = 56;
     private const int SmoothnessChipHeight = 26;
     private const int SmoothnessChipGap = 8;
     private const int SmoothnessSliderTopOffset = -2;
     private const int SmoothnessSaveDelayMilliseconds = 500;
-    private const int EggRowTop = 226;
-    private const int EggChipWidth = 72;
+    private const int EggRowTop = 8;
+    private const int EggChipWidth = 84;
     private const int EggChipHeight = 30;
-    private const int EggChipGap = 7;
+    private const int EggChipGap = 6;
     private const int EggCancelChipWidth = 80;
     private const int EggCaptionTopOffset = 4;
     private const int MenuChipWidth = 30;
@@ -78,6 +85,9 @@ public sealed class MainForm : Form
         BackColor = Theme.Background,
     };
 
+    private readonly SegmentedControl tabSwitch = new("Lights", "Scenes", "Tools");
+    private readonly Panel scenesPage = new() { Dock = DockStyle.Fill, BackColor = Theme.Background, Visible = false };
+    private readonly Panel toolsPage = new() { Dock = DockStyle.Fill, BackColor = Theme.Background, Visible = false };
     private readonly Panel header = new() { Dock = DockStyle.Top, Height = HeaderHeight, BackColor = Theme.Background };
     private readonly Label subtitleLabel = new() { AutoSize = true, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
     private readonly ToggleSwitch masterToggle = new();
@@ -88,6 +98,7 @@ public sealed class MainForm : Form
     private readonly Chip menuChip = new() { Text = "...", Size = new Size(MenuChipWidth, MenuChipHeight) };
     private readonly ContextMenuStrip headerMenu = new();
     private readonly System.Windows.Forms.Timer masterBrightnessTimer = new() { Interval = BrightnessSendDelayMilliseconds };
+    private string lightsSummary = string.Empty;
     private bool isAutoHideSuppressed;
     private bool isCelebrating;
     private DateTime lastAutoHideTime = DateTime.MinValue;
@@ -114,6 +125,8 @@ public sealed class MainForm : Form
         menuChip.Click += (_, _) => headerMenu.Show(menuChip, new Point(0, menuChip.Height));
         BuildHeader();
         Controls.Add(panelHost);
+        Controls.Add(scenesPage);
+        Controls.Add(toolsPage);
         Controls.Add(header);
 
         masterBrightnessTimer.Tick += (_, _) => SendMasterBrightness();
@@ -251,14 +264,17 @@ public sealed class MainForm : Form
         masterBrightnessValue.Size = new Size(ValueWidth, ValueHeight);
         masterBrightnessValue.Location = new Point(ContentWidth - SideMargin - ValueWidth, MasterRowTop);
 
-        header.Controls.AddRange([titleLabel, subtitleLabel, menuChip, masterToggle, brightnessCaption, masterBrightness, masterBrightnessValue]);
+        tabSwitch.Location = new Point(SideMargin, TabsTop);
+        tabSwitch.Size = new Size(InnerWidth, TabsHeight);
+        tabSwitch.SelectedChanged += (_, _) => ShowTab(tabSwitch.SelectedIndex);
+        header.Controls.AddRange([titleLabel, subtitleLabel, menuChip, masterToggle, brightnessCaption, masterBrightness, masterBrightnessValue, tabSwitch]);
 
         for (var index = 0; index < Scenes.All.Count; index++)
         {
             var scene = Scenes.All[index];
             var chip = new Chip { Text = scene.Name, Size = new Size(SceneChipWidth, SceneChipHeight), Location = new Point(SideMargin + index * (SceneChipWidth + SceneChipGap), ScenesTop) };
             chip.Click += (_, _) => ApplySceneToAll(scene);
-            header.Controls.Add(chip);
+            scenesPage.Controls.Add(chip);
         }
 
         var autoTitle = new Label { Text = "Auto by time of day", AutoSize = true, Font = Theme.BodyFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, AutoRowTop) };
@@ -266,7 +282,7 @@ public sealed class MainForm : Form
         autoSubtitleLabel.Location = new Point(SideMargin, AutoSubtitleTop);
         autoToggle.Location = new Point(ContentWidth - SideMargin - autoToggle.Width, AutoRowTop);
         autoToggle.SetCheckedSilently(sceneScheduler.IsEnabled);
-        header.Controls.AddRange([autoTitle, autoSubtitleLabel, autoToggle]);
+        scenesPage.Controls.AddRange([autoTitle, autoSubtitleLabel, autoToggle]);
 
         BuildEggTimerRow();
         BuildScreenSyncRow();
@@ -286,7 +302,7 @@ public sealed class MainForm : Form
     private void BuildEggTimerRow()
     {
         var caption = new Label { Text = "Egg timer", AutoSize = false, Size = new Size(CaptionWidth, CaptionHeight), TextAlign = ContentAlignment.MiddleLeft, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent, Location = new Point(SideMargin, EggRowTop + EggCaptionTopOffset) };
-        header.Controls.Add(caption);
+        toolsPage.Controls.Add(caption);
 
         var chipLeft = SideMargin + CaptionWidth;
         for (var index = 0; index < EggTimer.Presets.Count; index++)
@@ -295,14 +311,14 @@ public sealed class MainForm : Form
             var chip = new Chip { Text = $"{preset.Name} {preset.Minutes}m", Size = new Size(EggChipWidth, EggChipHeight), Location = new Point(chipLeft + index * (EggChipWidth + EggChipGap), EggRowTop) };
             chip.Click += (_, _) => StartEggTimer(preset);
             eggPresetChips.Add(chip);
-            header.Controls.Add(chip);
+            toolsPage.Controls.Add(chip);
         }
 
         eggCountdownLabel.Location = new Point(chipLeft, EggRowTop + EggCaptionTopOffset);
         eggCancelChip.Size = new Size(EggCancelChipWidth, EggChipHeight);
         eggCancelChip.Location = new Point(ContentWidth - SideMargin - EggCancelChipWidth, EggRowTop);
         eggCancelChip.Click += (_, _) => eggTimer.Cancel();
-        header.Controls.AddRange([eggCountdownLabel, eggCancelChip]);
+        toolsPage.Controls.AddRange([eggCountdownLabel, eggCancelChip]);
     }
 
     private void BuildScreenSyncRow()
@@ -320,7 +336,7 @@ public sealed class MainForm : Form
 
             screenSync.Stop();
         };
-        header.Controls.AddRange([title, subtitle, syncToggle]);
+        toolsPage.Controls.AddRange([title, subtitle, syncToggle]);
         BuildSmoothnessRow();
     }
 
@@ -351,7 +367,7 @@ public sealed class MainForm : Form
         resetChip.Click += (_, _) => ResetSmoothness();
         smoothnessSlider.SetValueSilently(settings.ScreenSyncSmoothness);
         smoothnessValue.Text = $"{smoothnessSlider.Value}%";
-        header.Controls.AddRange([caption, smoothnessSlider, smoothnessValue, resetChip]);
+        toolsPage.Controls.AddRange([caption, smoothnessSlider, smoothnessValue, resetChip]);
     }
 
     private void ResetSmoothness()
@@ -391,6 +407,7 @@ public sealed class MainForm : Form
         eggCancelChip.Visible = isRunning;
         var remaining = eggTimer.Remaining;
         eggCountdownLabel.Text = $"{(int)remaining.TotalMinutes:00}:{remaining.Seconds:00}";
+        RefreshSubtitle();
     }
 
     private void OnEggTimerFinished()
@@ -499,13 +516,38 @@ public sealed class MainForm : Form
         }
     }
 
-    private void FitToContent()
+    private void ShowTab(int tabIndex)
     {
-        var contentHeight = panelHost.Padding.Vertical;
+        panelHost.Visible = tabIndex == LightsTabIndex;
+        scenesPage.Visible = tabIndex == ScenesTabIndex;
+        toolsPage.Visible = tabIndex == ToolsTabIndex;
+        FitToContent();
+    }
+
+    private int MeasureContentHeight()
+    {
+        if (tabSwitch.SelectedIndex == ScenesTabIndex)
+        {
+            return ScenesPageHeight;
+        }
+
+        if (tabSwitch.SelectedIndex == ToolsTabIndex)
+        {
+            return ToolsPageHeight;
+        }
+
+        var lightsHeight = panelHost.Padding.Vertical;
         foreach (Control child in panelHost.Controls)
         {
-            contentHeight += child.Height + child.Margin.Vertical;
+            lightsHeight += child.Height + child.Margin.Vertical;
         }
+
+        return lightsHeight;
+    }
+
+    private void FitToContent()
+    {
+        var contentHeight = MeasureContentHeight();
 
         var workingArea = Screen.FromControl(this).WorkingArea;
         var maximumHeight = workingArea.Height - 2 * ScreenEdgeGap;
@@ -525,9 +567,10 @@ public sealed class MainForm : Form
     private void RefreshMaster()
     {
         var connectedLights = ConnectedLights.ToList();
-        subtitleLabel.Text = activeLights.Count == 0
+        lightsSummary = activeLights.Count == 0
             ? "No lights yet"
             : $"{connectedLights.Count} of {activeLights.Count} lights connected";
+        RefreshSubtitle();
 
         var knownStates = connectedLights.Select(light => light.LastState).OfType<LightState>().ToList();
         masterToggle.SetCheckedSilently(knownStates.Any(state => state.IsOn));
@@ -537,6 +580,15 @@ public sealed class MainForm : Form
         {
             masterBrightness.SetValueSilently((int)knownStates.Average(state => state.Brightness));
         }
+    }
+
+    private void RefreshSubtitle()
+    {
+        var remaining = eggTimer.Remaining;
+        subtitleLabel.ForeColor = eggTimer.IsRunning ? Theme.Accent : Theme.TextSecondary;
+        subtitleLabel.Text = eggTimer.IsRunning
+            ? $"Egg timer {(int)remaining.TotalMinutes:00}:{remaining.Seconds:00}"
+            : lightsSummary;
     }
 
     private void SetPowerOfAll(bool isOn)
