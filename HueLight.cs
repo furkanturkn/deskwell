@@ -177,6 +177,11 @@ public sealed class HueLight : IDisposable
             ?? throw new InvalidOperationException("Light is not reachable.");
         using var session = await GattSession.FromDeviceIdAsync(device.BluetoothDeviceId);
         session.MaintainConnection = true;
+        using var connectionRequest = device.RequestPreferredConnectionParameters(BluetoothLEPreferredConnectionParameters.ThroughputOptimized);
+        if (connectionRequest.Status != BluetoothLEPreferredConnectionParametersRequestStatus.Success)
+        {
+            Logger.Write($"{SavedLight.Name}: fast connection request returned {connectionRequest.Status}", null);
+        }
 
         var servicesResult = await device.GetGattServicesForUuidAsync(HueProtocol.ControlServiceUuid, BluetoothCacheMode.Uncached);
         if (servicesResult.Status != GattCommunicationStatus.Success || servicesResult.Services.Count == 0)

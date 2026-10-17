@@ -10,7 +10,7 @@ public sealed class ScreenSync : IDisposable
     private const int GridRows = 18;
     private const int BytesPerPixel = 4;
     private const int ColorMaximum = 255;
-    private const double SmoothingFactor = 0.55;
+    private const double SmoothingFactor = 0.65;
     private const double SaturationBoost = 1.35;
     private const double MinimumColorWeight = 0.05;
     private const double LuminanceRed = 0.2126;
