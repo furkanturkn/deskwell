@@ -2,7 +2,7 @@ namespace HueDesk;
 
 public sealed class PurifierPage : Panel
 {
-    public static readonly int PageHeight = Theme.Scale(192);
+    public static readonly int PageHeight = Theme.Scale(246);
 
     private static readonly int SideMargin = Theme.Scale(16);
     private static readonly int ContentWidth = Theme.Scale(380);
@@ -10,12 +10,17 @@ public sealed class PurifierPage : Panel
     private static readonly int TitleTop = Theme.Scale(12);
     private static readonly int StatusTop = Theme.Scale(40);
     private static readonly int StatusHeight = Theme.Scale(36);
-    private static readonly int ModeRowTop = Theme.Scale(90);
+    private static readonly int FilterTop = Theme.Scale(78);
+    private static readonly int FilterHeight = Theme.Scale(22);
+    private const int LowFilterPercent = 10;
+    private static readonly int ModeRowTop = Theme.Scale(112);
     private static readonly int ModeChipWidth = Theme.Scale(84);
     private static readonly int ModeChipHeight = Theme.Scale(30);
     private static readonly int ModeChipGap = Theme.Scale(6);
     private const int RefreshIntervalMilliseconds = 5000;
-    private static readonly int SpeedRowTop = Theme.Scale(138);
+    private static readonly int SpeedRowTop = Theme.Scale(160);
+    private static readonly int ScheduleTop = Theme.Scale(206);
+    private static readonly int ScheduleHeight = Theme.Scale(22);
     private static readonly int CaptionWidth = Theme.Scale(76);
     private static readonly int ValueWidth = Theme.Scale(44);
     private static readonly int ValueHeight = Theme.Scale(20);
@@ -23,7 +28,11 @@ public sealed class PurifierPage : Panel
     private static readonly int SliderRightGap = Theme.Scale(4);
     private const int SpeedSendDelayMilliseconds = 250;
 
-    private readonly AirPurifier? purifier;
+    private readonly AppSettings settings;
+    private readonly Label filterLabel = new() { AutoSize = false, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
+    private readonly Label scheduleLabel = new() { AutoSize = false, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
+    private AirPurifier? purifier;
+    private PurifierBoostScheduler? boostScheduler;
     private readonly PowerButton powerButton = new() { Icon = PowerIcon.Power };
     private readonly Label statusLabel = new() { AutoSize = false, Font = Theme.SmallFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
     private readonly System.Windows.Forms.Timer refreshTimer = new() { Interval = RefreshIntervalMilliseconds };
@@ -34,8 +43,9 @@ public sealed class PurifierPage : Panel
     private readonly System.Windows.Forms.Timer speedSendTimer = new() { Interval = SpeedSendDelayMilliseconds };
     private bool isRefreshing;
 
-    public PurifierPage(PurifierConfig? config)
+    public PurifierPage(PurifierConfig? config, AppSettings settings)
     {
+        this.settings = settings;
         Dock = DockStyle.Fill;
         BackColor = Theme.Background;
         Visible = false;
@@ -48,6 +58,13 @@ public sealed class PurifierPage : Panel
         }
 
         purifier = new AirPurifier(config);
+        boostScheduler = new PurifierBoostScheduler(purifier, settings);
+        boostScheduler.Changed += () =>
+        {
+            RefreshSchedule();
+            _ = Refresh();
+        };
+        RefreshSchedule();
         powerButton.CheckedChanged += (_, _) => _ = Run(() => purifier.SetPower(powerButton.Checked));
         refreshTimer.Tick += (_, _) => _ = Refresh();
         speedSlider.ValueChanged += (_, _) => speedValue.Text = $"{speedSlider.Value}";
@@ -73,6 +90,7 @@ public sealed class PurifierPage : Panel
         refreshTimer.Enabled = isActive;
         if (isActive)
         {
+            RefreshSchedule();
             _ = Refresh();
         }
     }
@@ -83,6 +101,7 @@ public sealed class PurifierPage : Panel
         {
             refreshTimer.Dispose();
             speedSendTimer.Dispose();
+            boostScheduler?.Dispose();
             purifier?.Dispose();
         }
 
@@ -95,7 +114,11 @@ public sealed class PurifierPage : Panel
         powerButton.Location = new Point(ContentWidth - SideMargin - powerButton.Width, TitleTop - 4);
         statusLabel.Size = new Size(InnerWidth, StatusHeight);
         statusLabel.Location = new Point(SideMargin, StatusTop);
-        Controls.AddRange([title, powerButton, statusLabel]);
+        scheduleLabel.Size = new Size(InnerWidth, ScheduleHeight);
+        scheduleLabel.Location = new Point(SideMargin, ScheduleTop);
+        filterLabel.Size = new Size(InnerWidth, FilterHeight);
+        filterLabel.Location = new Point(SideMargin, FilterTop);
+        Controls.AddRange([title, powerButton, statusLabel, filterLabel, scheduleLabel]);
 
         var sliderLeft = SideMargin + CaptionWidth;
         speedCaption.Size = new Size(CaptionWidth, SliderHeight);
@@ -113,6 +136,11 @@ public sealed class PurifierPage : Panel
             modeChips.Add(chip);
             Controls.Add(chip);
         }
+    }
+
+    private void RefreshSchedule()
+    {
+        scheduleLabel.Text = PurifierBoostScheduler.Describe(DateTime.Now, settings.PurifierBoostEndsAt);
     }
 
     private void ShowMissingConfiguration()
@@ -175,7 +203,6 @@ public sealed class PurifierPage : Panel
         powerButton.Enabled = true;
         powerButton.SetCheckedSilently(state.IsOn);
         var density = state.ParticleDensity is { } value ? $"PM2.5 {value} µg/m³" : "PM2.5 –";
-        var filter = state.FilterLifePercent is { } life ? $"Filter {life}%" : "Filter –";
         var mode = state.Mode?.ToString() ?? "–";
         var isManual = state.Mode == PurifierMode.Manual;
         speedCaption.Visible = isManual;
@@ -188,7 +215,22 @@ public sealed class PurifierPage : Panel
         }
 
         statusLabel.ForeColor = Theme.TextSecondary;
-        statusLabel.Text = $"{(state.IsOn ? "On" : "Off")}  ·  {mode}\n{density}  ·  {filter}";
+        statusLabel.Text = $"{(state.IsOn ? "On" : "Off")}  ·  {mode}\n{density}";
+        ShowFilter(state.FilterLifePercent);
+    }
+
+    private void ShowFilter(int? lifePercent)
+    {
+        if (lifePercent is not { } life)
+        {
+            filterLabel.ForeColor = Theme.TextSecondary;
+            filterLabel.Text = "Filter –";
+            return;
+        }
+
+        var isLow = life <= LowFilterPercent;
+        filterLabel.ForeColor = isLow ? Theme.Warning : Theme.Success;
+        filterLabel.Text = isLow ? $"Filter {life}%  ·  replace or reset the filter counter" : $"Filter {life}%";
     }
 
     private void ShowError()

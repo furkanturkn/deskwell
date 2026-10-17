@@ -89,7 +89,7 @@ public sealed class MainForm : Form
     private readonly SegmentedControl tabSwitch = new("Lights", "Scenes", "Tools", "Air");
     private readonly Panel scenesPage = new() { Dock = DockStyle.Fill, BackColor = Theme.Background, Visible = false };
     private readonly Panel toolsPage = new() { Dock = DockStyle.Fill, BackColor = Theme.Background, Visible = false };
-    private readonly PurifierPage purifierPage = new(PurifierConfig.Load());
+    private readonly PurifierPage purifierPage;
     private readonly Panel header = new() { Dock = DockStyle.Top, Height = HeaderHeight, BackColor = Theme.Background };
     private readonly Label subtitleLabel = new() { AutoSize = true, Font = Theme.BodyFont, ForeColor = Theme.TextSecondary, BackColor = Color.Transparent };
     private readonly PowerButton masterToggle = new() { Icon = PowerIcon.Power };
@@ -108,6 +108,7 @@ public sealed class MainForm : Form
     public MainForm(LightRegistry registry)
     {
         this.registry = registry;
+        purifierPage = new PurifierPage(PurifierConfig.Load(), settings);
         screenSync = new ScreenSync(() => ConnectedLights) { Smoothness = settings.ScreenSyncSmoothness };
         sceneScheduler = new SceneScheduler(settings, () => ConnectedLights, () => screenSync.IsEnabled);
         sceneScheduler.Ticked += RefreshAutoSubtitle;

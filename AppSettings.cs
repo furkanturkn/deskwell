@@ -12,6 +12,10 @@ public sealed class AppSettings
 
     public string? LastAppliedSceneName { get; set; }
 
+    public DateTime? PurifierBoostStartedAt { get; set; }
+
+    public DateTime? PurifierBoostEndsAt { get; set; }
+
     public int ScreenSyncSmoothness { get; set; } = ScreenSync.DefaultSmoothness;
 
     public static AppSettings Load()
