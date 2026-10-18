@@ -83,7 +83,7 @@ public sealed class ScreenSync : IDisposable
         timer.Start();
     }
 
-    public void Stop()
+    public void Stop(bool restorePreviousState = true)
     {
         if (!IsEnabled)
         {
@@ -94,9 +94,12 @@ public sealed class ScreenSync : IDisposable
         IsEnabled = false;
         desktopCapture?.Dispose();
         desktopCapture = null;
-        foreach (var (light, snapshot) in snapshots)
+        if (restorePreviousState)
         {
-            _ = LightCommands.RunSafely(light, () => light.Restore(snapshot));
+            foreach (var (light, snapshot) in snapshots)
+            {
+                _ = LightCommands.RunSafely(light, () => light.Restore(snapshot));
+            }
         }
 
         snapshots.Clear();

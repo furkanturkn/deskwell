@@ -69,6 +69,14 @@ public sealed class SceneScheduler : IDisposable
         }
     }
 
+    public void ApplyCurrentSceneNow()
+    {
+        EnterCurrentScene();
+        isCurrentSceneAlreadyOnLights = false;
+        lightsInCurrentScene.Clear();
+        ApplyDue();
+    }
+
     public void MarkCurrentSceneApplied(IEnumerable<HueLight> lights)
     {
         var scene = EnterCurrentScene();

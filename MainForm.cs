@@ -350,7 +350,12 @@ public sealed class MainForm : Form
                 return;
             }
 
-            screenSync.Stop();
+            var shouldApplyScheduledScene = sceneScheduler.IsEnabled;
+            screenSync.Stop(restorePreviousState: !shouldApplyScheduledScene);
+            if (shouldApplyScheduledScene)
+            {
+                sceneScheduler.ApplyCurrentSceneNow();
+            }
         };
         toolsPage.Controls.AddRange([title, subtitle, syncToggle]);
         BuildSmoothnessRow();
