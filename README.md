@@ -2,6 +2,13 @@
 
 Windows tray app for your desk: it keeps Philips Hue Bluetooth lights connected (no Bridge needed), syncs them to your screen, and also controls a Xiaomi air purifier, reminds you to take breaks and runs an egg timer.
 
+<p align="center">
+  <img src="docs/lights.png" alt="Lights tab" width="23%">
+  <img src="docs/scenes.png" alt="Scenes tab" width="23%">
+  <img src="docs/tools.png" alt="Tools tab: egg timer and screen sync" width="23%">
+  <img src="docs/air.png" alt="Air tab: purifier" width="23%">
+</p>
+
 - Power, brightness, warmth and color per light, plus all-lights controls
 - Scenes: Morning, Work, Gaming, Relax, Night; optional automatic scene by time of day
 - Global hotkey `Ctrl+Alt+L` toggles the panel; starts with Windows
