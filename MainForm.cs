@@ -114,6 +114,7 @@ public sealed class MainForm : Form
     {
         this.registry = registry;
         purifierPage = new PurifierPage(PurifierConfig.Load(), settings);
+        purifierPage.SummaryChanged += RefreshSubtitle;
         screenSync = new ScreenSync(() => ConnectedLights) { Smoothness = settings.ScreenSyncSmoothness };
         sceneScheduler = new SceneScheduler(settings, () => ConnectedLights, () => screenSync.IsEnabled);
         sceneScheduler.Ticked += RefreshAutoSubtitle;
@@ -698,9 +699,10 @@ public sealed class MainForm : Form
     {
         var remaining = eggTimer.Remaining;
         subtitleLabel.ForeColor = eggTimer.IsRunning ? Theme.Accent : Theme.TextSecondary;
+        var purifierSummary = purifierPage.Summary;
         subtitleLabel.Text = eggTimer.IsRunning
             ? $"Egg timer {(int)remaining.TotalMinutes:00}:{remaining.Seconds:00}"
-            : lightsSummary;
+            : purifierSummary is null ? lightsSummary : $"{lightsSummary}  ·  {purifierSummary}";
     }
 
     private void ChangeConnectionOfAll(bool shouldBeConnected)

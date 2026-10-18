@@ -18,6 +18,7 @@ public sealed class PurifierPage : Panel
     private static readonly int ModeChipHeight = Theme.Scale(30);
     private static readonly int ModeChipGap = Theme.Scale(6);
     private const int RefreshIntervalMilliseconds = 5000;
+    private const int BackgroundRefreshIntervalMilliseconds = 30000;
     private static readonly int SpeedRowTop = Theme.Scale(160);
     private static readonly int ScheduleTop = Theme.Scale(206);
     private static readonly int ScheduleHeight = Theme.Scale(22);
@@ -66,7 +67,10 @@ public sealed class PurifierPage : Panel
         };
         RefreshSchedule();
         powerButton.CheckedChanged += (_, _) => _ = Run(() => purifier.SetPower(powerButton.Checked));
+        refreshTimer.Interval = BackgroundRefreshIntervalMilliseconds;
         refreshTimer.Tick += (_, _) => _ = Refresh();
+        refreshTimer.Start();
+        _ = Refresh();
         speedSlider.ValueChanged += (_, _) => speedValue.Text = $"{speedSlider.Value}";
         speedSlider.UserChanged += (_, _) =>
         {
@@ -80,6 +84,10 @@ public sealed class PurifierPage : Panel
         };
     }
 
+    public event Action? SummaryChanged;
+
+    public string? Summary { get; private set; }
+
     public void SetActive(bool isActive)
     {
         if (purifier is null)
@@ -87,7 +95,7 @@ public sealed class PurifierPage : Panel
             return;
         }
 
-        refreshTimer.Enabled = isActive;
+        refreshTimer.Interval = isActive ? RefreshIntervalMilliseconds : BackgroundRefreshIntervalMilliseconds;
         if (isActive)
         {
             RefreshSchedule();
@@ -216,6 +224,8 @@ public sealed class PurifierPage : Panel
 
         statusLabel.ForeColor = Theme.TextSecondary;
         statusLabel.Text = $"{(state.IsOn ? "On" : "Off")}  ·  {mode}\n{density}";
+        var summaryDensity = state.ParticleDensity is { } particles ? $" · PM2.5 {particles}" : string.Empty;
+        UpdateSummary(state.IsOn ? $"Air: {mode}{summaryDensity}" : "Air: off");
         ShowFilter(state.FilterLifePercent);
     }
 
@@ -233,8 +243,20 @@ public sealed class PurifierPage : Panel
         filterLabel.Text = isLow ? $"Filter {life}%  ·  replace or reset the filter counter" : $"Filter {life}%";
     }
 
+    private void UpdateSummary(string summary)
+    {
+        if (Summary == summary)
+        {
+            return;
+        }
+
+        Summary = summary;
+        SummaryChanged?.Invoke();
+    }
+
     private void ShowError()
     {
+        UpdateSummary("Air: unreachable");
         statusLabel.ForeColor = Theme.Warning;
         statusLabel.Text = "Can't reach the purifier. Check the IP and token, see log.txt.";
     }
