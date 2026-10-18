@@ -3,6 +3,7 @@ namespace HueDesk;
 public sealed class MainForm : Form
 {
     private const int DropShadowClassStyle = 0x20000;
+    private const int WindowPositionChangingMessage = 0x0046;
     private const int DwmDarkModeAttribute = 20;
     private const int DwmCornerPreferenceAttribute = 33;
     private const int DwmRoundCorner = 2;
@@ -106,6 +107,7 @@ public sealed class MainForm : Form
     private string lightsSummary = string.Empty;
     private bool isAutoHideSuppressed;
     private bool isCelebrating;
+    private bool isWidgetRaised;
     private DateTime lastAutoHideTime = DateTime.MinValue;
 
     public MainForm(LightRegistry registry)
@@ -162,6 +164,8 @@ public sealed class MainForm : Form
 
     public bool HasLights => activeLights.Count > 0;
 
+    public bool IsDesktopWidget => settings.DesktopWidgetEnabled;
+
     protected override CreateParams CreateParams
     {
         get
@@ -176,11 +180,52 @@ public sealed class MainForm : Form
     {
         FitToContent();
         Show();
+        if (IsDesktopWidget)
+        {
+            RaiseWidget();
+            return;
+        }
+
         Activate();
+    }
+
+    public void SetDesktopWidget(bool isEnabled)
+    {
+        settings.DesktopWidgetEnabled = isEnabled;
+        settings.Save();
+        ApplyDesktopWidgetMode();
+    }
+
+    public void ApplyDesktopWidgetMode()
+    {
+        TopMost = !IsDesktopWidget;
+        DesktopWidgetWindow.SetToolWindow(Handle, IsDesktopWidget);
+        isWidgetRaised = false;
+        if (!IsDesktopWidget)
+        {
+            Hide();
+            return;
+        }
+
+        FitToContent();
+        Show();
+        DesktopWidgetWindow.SendToBottom(Handle);
     }
 
     public void ToggleNearTray()
     {
+        if (IsDesktopWidget)
+        {
+            if (isWidgetRaised)
+            {
+                SinkWidget();
+                return;
+            }
+
+            ShowNearTray();
+            return;
+        }
+
         if (Visible)
         {
             Hide();
@@ -225,6 +270,16 @@ public sealed class MainForm : Form
     protected override void OnDeactivate(EventArgs eventArgs)
     {
         base.OnDeactivate(eventArgs);
+        if (IsDesktopWidget)
+        {
+            if (!isAutoHideSuppressed)
+            {
+                SinkWidget();
+            }
+
+            return;
+        }
+
         if (Visible && !isAutoHideSuppressed)
         {
             lastAutoHideTime = DateTime.UtcNow;
@@ -239,10 +294,26 @@ public sealed class MainForm : Form
         paintEventArgs.Graphics.DrawRectangle(borderPen, 0, 0, Width - 1, Height - 1);
     }
 
+    protected override void WndProc(ref Message message)
+    {
+        if (message.Msg == WindowPositionChangingMessage && IsDesktopWidget && !isWidgetRaised)
+        {
+            DesktopWidgetWindow.KeepAtBottom(message.LParam);
+        }
+
+        base.WndProc(ref message);
+    }
+
     protected override bool ProcessCmdKey(ref Message message, Keys keyData)
     {
         if (keyData == Keys.Escape)
         {
+            if (IsDesktopWidget)
+            {
+                SinkWidget();
+                return true;
+            }
+
             Hide();
             return true;
         }
@@ -260,6 +331,19 @@ public sealed class MainForm : Form
         }
 
         base.OnFormClosing(eventArgs);
+    }
+
+    private void RaiseWidget()
+    {
+        isWidgetRaised = true;
+        DesktopWidgetWindow.BringToTop(Handle);
+        Activate();
+    }
+
+    private void SinkWidget()
+    {
+        isWidgetRaised = false;
+        DesktopWidgetWindow.SendToBottom(Handle);
     }
 
     private bool HasActiveConnections => activeLights.Any(light => !light.IsReleased);

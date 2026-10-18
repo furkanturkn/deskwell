@@ -16,6 +16,8 @@ public sealed class AppSettings
 
     public DateTime? PurifierBoostEndsAt { get; set; }
 
+    public bool DesktopWidgetEnabled { get; set; }
+
     public int ScreenSyncSmoothness { get; set; } = ScreenSync.DefaultSmoothness;
 
     public static AppSettings Load()

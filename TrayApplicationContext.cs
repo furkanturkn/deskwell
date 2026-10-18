@@ -27,6 +27,9 @@ public sealed class TrayApplicationContext : ApplicationContext
             mainForm.ShowNearTray();
             mainForm.ShowAddLightDialog();
         });
+        var desktopWidgetItem = new ToolStripMenuItem("Desktop widget") { Checked = mainForm.IsDesktopWidget, CheckOnClick = true };
+        desktopWidgetItem.CheckedChanged += (_, _) => mainForm.SetDesktopWidget(desktopWidgetItem.Checked);
+        menu.Items.Add(desktopWidgetItem);
         menu.Items.Add(startWithWindowsItem);
         menu.Items.Add("Exit", null, (_, _) => ExitApplication());
 
@@ -51,7 +54,11 @@ public sealed class TrayApplicationContext : ApplicationContext
             }
         };
 
-        if (!mainForm.HasLights)
+        if (mainForm.IsDesktopWidget)
+        {
+            mainForm.ApplyDesktopWidgetMode();
+        }
+        else if (!mainForm.HasLights)
         {
             mainForm.ShowNearTray();
         }
