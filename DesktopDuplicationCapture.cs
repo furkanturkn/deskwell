@@ -2,7 +2,7 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 
-namespace HueDesk;
+namespace Deskwell;
 
 public enum CaptureStatus
 {

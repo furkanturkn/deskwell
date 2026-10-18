@@ -1,8 +1,8 @@
-namespace HueDesk;
+namespace Deskwell;
 
 internal static class Program
 {
-    private const string SingleInstanceMutexName = "HueDesk.SingleInstance";
+    private const string SingleInstanceMutexName = "Deskwell.SingleInstance";
 
     [STAThread]
     private static void Main()

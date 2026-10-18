@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Drawing.Imaging;
 
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed class ScreenSync : IDisposable
 {

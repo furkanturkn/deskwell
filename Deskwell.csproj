@@ -9,8 +9,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <AssemblyName>HueDesk</AssemblyName>
-    <RootNamespace>HueDesk</RootNamespace>
+    <AssemblyName>Deskwell</AssemblyName>
+    <RootNamespace>Deskwell</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

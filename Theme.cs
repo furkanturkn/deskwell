@@ -1,6 +1,6 @@
 using System.Drawing.Drawing2D;
 
-namespace HueDesk;
+namespace Deskwell;
 
 public static class Theme
 {

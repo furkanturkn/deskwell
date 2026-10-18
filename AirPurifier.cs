@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed record PurifierConfig(string Ip, string Token)
 {

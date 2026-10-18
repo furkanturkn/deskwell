@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed class AppSettings
 {

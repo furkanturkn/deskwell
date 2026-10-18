@@ -1,4 +1,4 @@
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed record Scene(string Name, byte Brightness, ushort? TemperatureMirek, double? Hue, double? Saturation, TimeOnly? AutoStart);
 

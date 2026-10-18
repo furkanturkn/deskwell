@@ -1,4 +1,4 @@
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed class MainForm : Form
 {
@@ -119,7 +119,7 @@ public sealed class MainForm : Form
         sceneScheduler.Ticked += RefreshAutoSubtitle;
         breakReminder = new BreakReminder(() => ConnectedLights, () => screenSync.IsEnabled);
 
-        Text = "Hue Desk";
+        Text = "Deskwell";
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;
@@ -352,7 +352,7 @@ public sealed class MainForm : Form
 
     private void BuildHeader()
     {
-        var titleLabel = new Label { Text = "Hue Desk", AutoSize = true, Font = Theme.TitleFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, TitleTop) };
+        var titleLabel = new Label { Text = "Deskwell", AutoSize = true, Font = Theme.TitleFont, ForeColor = Theme.TextPrimary, BackColor = Color.Transparent, Location = new Point(SideMargin, TitleTop) };
         subtitleLabel.Location = new Point(SideMargin + SubtitleLeftOffset, SubtitleTop);
         masterToggle.Location = new Point(ContentWidth - SideMargin - masterToggle.Width, MasterToggleTop);
         menuChip.Location = new Point(masterToggle.Left - MenuChipGap - MenuChipWidth, MenuChipTop);
@@ -588,7 +588,7 @@ public sealed class MainForm : Form
         {
             var answer = MessageBox.Show(
                 this,
-                $"Remove \"{savedLight.Name}\" from Hue Desk?\n\nTo add it again later, factory reset the light first.",
+                $"Remove \"{savedLight.Name}\" from Deskwell?\n\nTo add it again later, factory reset the light first.",
                 Text,
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);

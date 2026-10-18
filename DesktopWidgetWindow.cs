@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace HueDesk;
+namespace Deskwell;
 
 public static class DesktopWidgetWindow
 {

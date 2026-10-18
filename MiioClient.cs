@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed class MiioClient : IDisposable
 {

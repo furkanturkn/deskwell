@@ -2,7 +2,7 @@ using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Enumeration;
 
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed class AddLightForm : Form
 {

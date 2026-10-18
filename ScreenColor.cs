@@ -1,4 +1,4 @@
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed record ScreenColor(double Red, double Green, double Blue, double Luminance)
 {

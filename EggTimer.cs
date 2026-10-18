@@ -1,4 +1,4 @@
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed record EggPreset(string Name, int Minutes)
 {

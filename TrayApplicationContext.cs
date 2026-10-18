@@ -1,11 +1,12 @@
 using Microsoft.Win32;
 
-namespace HueDesk;
+namespace Deskwell;
 
 public sealed class TrayApplicationContext : ApplicationContext
 {
     private const string StartupRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string StartupValueName = "HueDesk";
+    private const string StartupValueName = "Deskwell";
+    private const string LegacyStartupValueName = "HueDesk";
     private const string StartupMarkerFileName = "startup-configured";
     private const int EggBalloonMilliseconds = 10000;
 
@@ -37,7 +38,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         notifyIcon = new NotifyIcon
         {
             Icon = trayIcon,
-            Text = "Hue Desk",
+            Text = "Deskwell",
             ContextMenuStrip = menu,
             Visible = true,
         };
@@ -79,8 +80,21 @@ public sealed class TrayApplicationContext : ApplicationContext
         return Icon.FromHandle(bitmap.GetHicon());
     }
 
+    private static void MigrateLegacyStartupEntry()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryPath, writable: true);
+        if (key?.GetValue(LegacyStartupValueName) is null)
+        {
+            return;
+        }
+
+        key.DeleteValue(LegacyStartupValueName);
+        SetStartWithWindows(true);
+    }
+
     private static void ApplyStartWithWindowsDefault()
     {
+        MigrateLegacyStartupEntry();
         var markerPath = Path.Combine(AppPaths.DataDirectory, StartupMarkerFileName);
         if (!File.Exists(markerPath))
         {
