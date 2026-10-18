@@ -20,6 +20,8 @@ public sealed class MainForm : Form
     private static readonly int SideMargin = Theme.Scale(16);
     private static readonly int InnerWidth = ContentWidth - 2 * SideMargin;
     private static readonly int ScreenEdgeGap = Theme.Scale(12);
+    // Keeps the window above the "Activate Windows" watermark, which sits about 70-112 px above the taskbar. Set to 0 once Windows is activated.
+    private const int ActivationWatermarkClearance = 130;
     private static readonly int HostTopPadding = Theme.Scale(4);
     private static readonly int HostBottomPadding = Theme.Scale(8);
     private static readonly int TitleTop = Theme.Scale(12);
@@ -571,10 +573,10 @@ public sealed class MainForm : Form
         var contentHeight = MeasureContentHeight();
 
         var workingArea = Screen.FromControl(this).WorkingArea;
-        var maximumHeight = workingArea.Height - 2 * ScreenEdgeGap;
+        var maximumHeight = workingArea.Height - 2 * ScreenEdgeGap - ActivationWatermarkClearance;
         var totalHeight = Math.Min(HeaderHeight + contentHeight, maximumHeight);
         ClientSize = new Size(ContentWidth, totalHeight);
-        Location = new Point(workingArea.Right - Width - ScreenEdgeGap, workingArea.Bottom - Height - ScreenEdgeGap);
+        Location = new Point(workingArea.Right - Width - ScreenEdgeGap, workingArea.Bottom - Height - ScreenEdgeGap - ActivationWatermarkClearance);
     }
 
     private void BeginInvokeIfCreated(Action action)
