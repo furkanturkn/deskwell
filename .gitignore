@@ -1,3 +1,10 @@
 bin/
 obj/
 .pinq-doq/
+.claude/
+CLAUDE.md
+purifier.json
+*.token
+.env
+log.txt
+activity.txt
