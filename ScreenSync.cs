@@ -17,11 +17,16 @@ public sealed class ScreenSync : IDisposable
     private const double HueChangeThresholdDegrees = 1.5;
     private const double SaturationChangeThreshold = 0.02;
     private const int BrightnessChangeThreshold = 3;
+    private const int StallMilliseconds = 400;
+    private const int SlowSendMilliseconds = 250;
     private static readonly TimeSpan CaptureRetryDelay = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan LightSendTimeout = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan StatisticsInterval = TimeSpan.FromSeconds(30);
 
     private readonly Func<IEnumerable<HueLight>> connectedLights;
     private readonly System.Windows.Forms.Timer timer = new() { Interval = SampleIntervalMilliseconds };
     private readonly Dictionary<HueLight, LightSnapshot> snapshots = [];
+    private readonly HashSet<HueLight> lightsReceivingSync = [];
     private DesktopDuplicationCapture? desktopCapture;
     private DateTime nextCaptureCreationAttempt = DateTime.MinValue;
     private long lastSampleTimestamp;
@@ -29,6 +34,13 @@ public sealed class ScreenSync : IDisposable
     private ScreenColor? smoothedColor;
     private LightOutput? lastOutput;
     private bool isSending;
+    private long lastTickTimestamp;
+    private long statisticsWindowStart;
+    private int sendCount;
+    private int busyTickCount;
+    private double totalSendMilliseconds;
+    private double maximumSendMilliseconds;
+    private double maximumTickGapMilliseconds;
 
     public ScreenSync(Func<IEnumerable<HueLight>> connectedLights)
     {
@@ -62,7 +74,11 @@ public sealed class ScreenSync : IDisposable
         smoothedColor = null;
         latestColor = null;
         lastOutput = null;
+        lightsReceivingSync.Clear();
         lastSampleTimestamp = Stopwatch.GetTimestamp();
+        lastTickTimestamp = 0;
+        statisticsWindowStart = lastSampleTimestamp;
+        ResetStatistics();
         IsEnabled = true;
         timer.Start();
     }
@@ -199,8 +215,20 @@ public sealed class ScreenSync : IDisposable
 
     private async Task Sample()
     {
-        if (!IsEnabled || IsSuspended || isSending)
+        if (!IsEnabled)
         {
+            return;
+        }
+
+        RecordTick();
+        if (IsSuspended)
+        {
+            return;
+        }
+
+        if (isSending)
+        {
+            busyTickCount++;
             return;
         }
 
@@ -214,23 +242,81 @@ public sealed class ScreenSync : IDisposable
         var smoothingFactor = CalculateSmoothingFactor();
         smoothedColor = smoothedColor is null ? captured : smoothedColor.Blend(captured, smoothingFactor);
         var output = ToOutput(smoothedColor);
-        var shouldSendColor = IsColorChange(lastOutput, output);
-        var shouldSendBrightness = IsBrightnessChange(lastOutput, output);
+        var lights = connectedLights().ToList();
+        lightsReceivingSync.IntersectWith(lights);
+        var hasLightWithoutCurrentColor = lights.Any(light => !lightsReceivingSync.Contains(light));
+        var previousOutput = hasLightWithoutCurrentColor ? null : lastOutput;
+        var shouldSendColor = IsColorChange(previousOutput, output);
+        var shouldSendBrightness = IsBrightnessChange(previousOutput, output);
         if (!shouldSendColor && !shouldSendBrightness)
         {
             return;
         }
 
         isSending = true;
+        var sendStartTimestamp = Stopwatch.GetTimestamp();
         try
         {
-            lastOutput = MergeSent(lastOutput, output, shouldSendColor, shouldSendBrightness);
-            await Task.WhenAll(connectedLights().Select(light => LightCommands.RunSafely(light, () => Send(light, output, shouldSendColor, shouldSendBrightness))));
+            lastOutput = MergeSent(previousOutput, output, shouldSendColor, shouldSendBrightness);
+            lightsReceivingSync.UnionWith(lights);
+            await Task.WhenAll(lights.Select(light => LightCommands.RunSafely(light, () => Send(light, output, shouldSendColor, shouldSendBrightness).WaitAsync(LightSendTimeout))));
         }
         finally
         {
             isSending = false;
+            RecordSend(Stopwatch.GetElapsedTime(sendStartTimestamp).TotalMilliseconds);
         }
+    }
+
+    private void RecordTick()
+    {
+        var now = Stopwatch.GetTimestamp();
+        if (lastTickTimestamp != 0)
+        {
+            var gapMilliseconds = Stopwatch.GetElapsedTime(lastTickTimestamp, now).TotalMilliseconds;
+            maximumTickGapMilliseconds = Math.Max(maximumTickGapMilliseconds, gapMilliseconds);
+            if (gapMilliseconds > StallMilliseconds)
+            {
+                Logger.Write($"Screen sync: UI thread stalled, {gapMilliseconds:0} ms between samples");
+            }
+        }
+
+        lastTickTimestamp = now;
+        ReportStatisticsIfDue(now);
+    }
+
+    private void RecordSend(double durationMilliseconds)
+    {
+        sendCount++;
+        totalSendMilliseconds += durationMilliseconds;
+        maximumSendMilliseconds = Math.Max(maximumSendMilliseconds, durationMilliseconds);
+        if (durationMilliseconds > SlowSendMilliseconds)
+        {
+            Logger.Write($"Screen sync: slow send, {durationMilliseconds:0} ms");
+        }
+    }
+
+    private void ReportStatisticsIfDue(long now)
+    {
+        if (Stopwatch.GetElapsedTime(statisticsWindowStart, now) < StatisticsInterval)
+        {
+            return;
+        }
+
+        var windowSeconds = Stopwatch.GetElapsedTime(statisticsWindowStart, now).TotalSeconds;
+        var averageSendMilliseconds = sendCount == 0 ? 0 : totalSendMilliseconds / sendCount;
+        Logger.Write($"Screen sync stats: {sendCount / windowSeconds:0.0} sends/s, send avg {averageSendMilliseconds:0} ms, max {maximumSendMilliseconds:0} ms, max sample gap {maximumTickGapMilliseconds:0} ms, skipped while sending {busyTickCount}");
+        statisticsWindowStart = now;
+        ResetStatistics();
+    }
+
+    private void ResetStatistics()
+    {
+        sendCount = 0;
+        busyTickCount = 0;
+        totalSendMilliseconds = 0;
+        maximumSendMilliseconds = 0;
+        maximumTickGapMilliseconds = 0;
     }
 
     private static async Task Send(HueLight light, LightOutput output, bool shouldSendColor, bool shouldSendBrightness)

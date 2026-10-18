@@ -38,6 +38,7 @@ public sealed class HueLight : IDisposable
 
     private CancellationTokenSource? connectionLoop;
     private bool isReleased;
+    private DateTime connectedSince;
     private GattCharacteristic? powerCharacteristic;
     private GattCharacteristic? brightnessCharacteristic;
     private GattCharacteristic? temperatureCharacteristic;
@@ -336,7 +337,22 @@ public sealed class HueLight : IDisposable
             return;
         }
 
+        var wasConnected = Connection == ConnectionState.Connected;
         Connection = connection;
+        LogConnectionTransition(wasConnected, connection);
         ConnectionChanged?.Invoke();
+    }
+
+    private void LogConnectionTransition(bool wasConnected, ConnectionState connection)
+    {
+        if (connection == ConnectionState.Connected)
+        {
+            connectedSince = DateTime.Now;
+            Logger.Write($"{SavedLight.Name}: connected");
+        }
+        else if (wasConnected)
+        {
+            Logger.Write($"{SavedLight.Name}: connection lost after {(DateTime.Now - connectedSince).TotalSeconds:0} s ({connection})");
+        }
     }
 }
