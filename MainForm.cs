@@ -667,6 +667,11 @@ public sealed class MainForm : Form
             return PurifierPage.PageHeight;
         }
 
+        return MeasureLightsHeight();
+    }
+
+    private int MeasureLightsHeight()
+    {
         var lightsHeight = panelHost.Padding.Vertical;
         foreach (Control child in panelHost.Controls)
         {
@@ -684,7 +689,9 @@ public sealed class MainForm : Form
         var maximumHeight = workingArea.Height - 2 * ScreenEdgeGap - ActivationWatermarkClearance;
         var totalHeight = Math.Min(HeaderHeight + contentHeight, maximumHeight);
         ClientSize = new Size(ContentWidth, totalHeight);
-        Location = new Point(workingArea.Right - Width - ScreenEdgeGap, workingArea.Bottom - Height - ScreenEdgeGap - ActivationWatermarkClearance);
+        var lightsTabHeight = Math.Min(HeaderHeight + MeasureLightsHeight(), maximumHeight);
+        var fixedTop = workingArea.Bottom - lightsTabHeight - ScreenEdgeGap - ActivationWatermarkClearance;
+        Location = new Point(workingArea.Right - Width - ScreenEdgeGap, fixedTop);
     }
 
     private void BeginInvokeIfCreated(Action action)
