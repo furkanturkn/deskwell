@@ -17,6 +17,7 @@ public static class LightShow
         {
             if (light.CaptureSnapshot() is { } snapshot)
             {
+                light.ExpectState(snapshot);
                 snapshots.Add((light, snapshot));
             }
         }
@@ -30,7 +31,13 @@ public static class LightShow
             await Task.Delay(StepDelayMilliseconds);
         }
 
-        await Task.WhenAll(snapshots.Select(entry => LightCommands.RunSafely(entry.Light, () => entry.Light.Restore(entry.Snapshot))));
+        await Task.WhenAll(snapshots.Select(entry => LightCommands.RunSafely(entry.Light, () => RestoreAndClearExpectation(entry.Light, entry.Snapshot))));
+    }
+
+    private static async Task RestoreAndClearExpectation(HueLight light, LightSnapshot snapshot)
+    {
+        await light.Restore(snapshot);
+        light.ClearExpectedState();
     }
 
     private static async Task PlayStep(HueLight light, int lightIndex, int step)

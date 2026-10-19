@@ -550,12 +550,30 @@ public sealed class MainForm : Form
         light.ConnectionChanged += () => BeginInvokeIfCreated(() =>
         {
             RefreshMaster();
-            sceneScheduler.ApplyDue();
+            var lightsGivenScene = sceneScheduler.ApplyDue();
+            RestoreLostState(light, lightsGivenScene);
             RefreshAutoSubtitle();
         });
 
         light.StartKeepingConnected();
         RefreshMaster();
+    }
+
+    private void RestoreLostState(HueLight light, IReadOnlyCollection<HueLight> lightsGivenScene)
+    {
+        if (!light.IsConnected)
+        {
+            return;
+        }
+
+        var lostState = light.TakeLostState();
+        if (lostState is null || screenSync.IsEnabled || lightsGivenScene.Contains(light))
+        {
+            return;
+        }
+
+        ActivityLog.Write($"{light.SavedLight.Name}: previous state restored after reconnect");
+        _ = LightCommands.RunSafely(light, () => light.Restore(lostState));
     }
 
     private void RemoveLight(SavedLight savedLight)

@@ -39,6 +39,8 @@ public sealed class HueLight : IDisposable
     private CancellationTokenSource? connectionLoop;
     private bool isReleased;
     private DateTime connectedSince;
+    private LightSnapshot? stateLostWhileDisconnected;
+    private LightSnapshot? expectedState;
     private GattCharacteristic? powerCharacteristic;
     private GattCharacteristic? brightnessCharacteristic;
     private GattCharacteristic? temperatureCharacteristic;
@@ -127,6 +129,23 @@ public sealed class HueLight : IDisposable
         await Write(colorCharacteristic, value, writeMode);
         LastColor = new LightColor(hue, saturation);
         Mode = LightMode.Color;
+    }
+
+    public void ExpectState(LightSnapshot snapshot)
+    {
+        expectedState = snapshot;
+    }
+
+    public void ClearExpectedState()
+    {
+        expectedState = null;
+    }
+
+    public LightSnapshot? TakeLostState()
+    {
+        var lostState = stateLostWhileDisconnected;
+        stateLostWhileDisconnected = null;
+        return lostState;
     }
 
     public LightSnapshot? CaptureSnapshot()
@@ -238,6 +257,7 @@ public sealed class HueLight : IDisposable
 
         var initialState = await ReadState();
         LastError = null;
+        stateLostWhileDisconnected = FindLostState(LastState, initialState);
         LastState = initialState;
         SetConnection(ConnectionState.Connected);
         StateChanged?.Invoke(initialState);
@@ -260,6 +280,24 @@ public sealed class HueLight : IDisposable
         {
             device.ConnectionStatusChanged -= OnConnectionStatusChanged;
         }
+    }
+
+    private LightSnapshot? FindLostState(LightState? previousState, LightState currentState)
+    {
+        var expected = expectedState;
+        expectedState = null;
+        if (expected is not null)
+        {
+            return expected;
+        }
+
+        if (previousState is null)
+        {
+            return null;
+        }
+
+        var isColorModeUnverifiable = Mode == LightMode.Color;
+        return previousState == currentState && !isColorModeUnverifiable ? null : new LightSnapshot(previousState, Mode, LastColor);
     }
 
     private async Task<LightState> ReadState()

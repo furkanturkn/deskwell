@@ -42,24 +42,24 @@ public sealed class SceneScheduler : IDisposable
         }
     }
 
-    public void ApplyDue()
+    public IReadOnlyCollection<HueLight> ApplyDue()
     {
         if (!IsEnabled || isPaused())
         {
-            return;
+            return [];
         }
 
         var scene = EnterCurrentScene();
         var lightsToUpdate = connectedLights().Where(light => lightsInCurrentScene.Add(light)).ToList();
         if (lightsToUpdate.Count == 0)
         {
-            return;
+            return [];
         }
 
         RememberAppliedScene(scene);
         if (isCurrentSceneAlreadyOnLights)
         {
-            return;
+            return [];
         }
 
         ActivityLog.Write($"Scene \"{scene.Name}\" applied to {lightsToUpdate.Count} light(s)");
@@ -67,6 +67,8 @@ public sealed class SceneScheduler : IDisposable
         {
             _ = LightCommands.RunSafely(light, () => light.ApplyScene(scene));
         }
+
+        return lightsToUpdate;
     }
 
     public void ApplyCurrentSceneNow()

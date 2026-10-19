@@ -67,7 +67,9 @@ public sealed class BreakReminder : IDisposable
 
     private static async Task Blink(HueLight light)
     {
-        var originalBrightness = light.LastState!.Brightness;
+        var snapshot = light.CaptureSnapshot()!;
+        var originalBrightness = snapshot.State.Brightness;
+        light.ExpectState(snapshot);
         var contrastBrightness = originalBrightness > HueProtocol.MaximumBrightness / 2 ? HueProtocol.MinimumBrightness : HueProtocol.MaximumBrightness;
         try
         {
@@ -78,10 +80,13 @@ public sealed class BreakReminder : IDisposable
                 await light.SetBrightness(originalBrightness);
                 await Task.Delay(BlinkStepMilliseconds);
             }
+
+            light.ClearExpectedState();
         }
         catch
         {
             await light.SetBrightness(originalBrightness);
+            light.ClearExpectedState();
             throw;
         }
     }
