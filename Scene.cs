@@ -6,7 +6,7 @@ public static class Scenes
 {
     public static readonly Scene Morning = new("Morning", 200, 350, null, null, new TimeOnly(6, 0));
     public static readonly Scene Work = new("Work", 254, 300, null, null, new TimeOnly(9, 0));
-    public static readonly Scene Gaming = new("Gaming", 130, null, 265, 0.85, new TimeOnly(18, 0));
+    public static readonly Scene Gaming = new("Gaming", 100, null, 28, 0.65, new TimeOnly(18, 0));
     public static readonly Scene Night = new("Night", 12, 500, null, null, new TimeOnly(23, 0));
     public static readonly Scene Relax = new("Relax", 110, 460, null, null, null);
 

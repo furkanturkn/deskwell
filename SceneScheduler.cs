@@ -105,20 +105,25 @@ public sealed class SceneScheduler : IDisposable
         }
 
         var isFirstEvaluationAfterStart = trackedSceneName is null;
-        isCurrentSceneAlreadyOnLights = isFirstEvaluationAfterStart && settings.LastAppliedSceneName == scene.Name;
+        isCurrentSceneAlreadyOnLights = isFirstEvaluationAfterStart && settings.LastAppliedSceneName == AppliedKey(scene);
         trackedSceneName = scene.Name;
         lightsInCurrentScene.Clear();
         return scene;
     }
 
+    private static string AppliedKey(Scene scene)
+    {
+        return scene.ToString();
+    }
+
     private void RememberAppliedScene(Scene scene)
     {
-        if (settings.LastAppliedSceneName == scene.Name)
+        if (settings.LastAppliedSceneName == AppliedKey(scene))
         {
             return;
         }
 
-        settings.LastAppliedSceneName = scene.Name;
+        settings.LastAppliedSceneName = AppliedKey(scene);
         settings.Save();
     }
 }
