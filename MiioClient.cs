@@ -107,7 +107,7 @@ public sealed class MiioClient : IDisposable
         {
             ["id"] = requestId,
             ["method"] = method,
-            ["params"] = parameters,
+            ["params"] = parameters.DeepClone(),
         };
 
         var encrypted = Encrypt(Encoding.UTF8.GetBytes(body.ToJsonString()));
